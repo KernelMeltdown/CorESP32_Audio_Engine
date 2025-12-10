@@ -1,0 +1,47 @@
+{
+  "schema_version": "1.0",
+  "engine_version": "1.0.0",
+  "name": "default",
+  "description": "Factory default audio settings",
+  
+  "audio": {
+    "mode": "i2s",
+    "sampleRate": 22050,
+    "voices": 4,
+    "volume": 200
+  },
+  
+  "hardware": {
+    "i2s": {
+      "pin": 1,
+      "bufferSize": 64,
+      "numBuffers": 2,
+      "amplitude": 12000
+    },
+    "pwm": {
+      "pin": 2,
+      "frequency": 78125,
+      "resolution": 9,
+      "amplitude": 5000,
+      "gain": 7
+    }
+  },
+  
+  "effects": {
+    "eq": {
+      "bass": 0,
+      "mid": 0,
+      "treble": 0
+    },
+    "reverb": 0.0
+  },
+  
+  "resample": {
+    "quality": "best"
+  },
+  
+  "display": {
+    "enabled": true,
+    "brightness": 180
+  }
+}

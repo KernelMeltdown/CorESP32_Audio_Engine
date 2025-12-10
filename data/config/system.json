@@ -1,0 +1,13 @@
+{
+  "version": "1.0",
+  "startup": {
+    "profile": "default",
+    "mode": "auto"
+  },
+  "features": {
+    "audio_engine": true,
+    "display": true,
+    "wifi": false,
+    "bluetooth": false
+  }
+}
