@@ -1,26 +1,40 @@
 /*
  ╔══════════════════════════════════════════════════════════════════════════════╗
  ║  AUDIO CODEC MANAGER - Implementation                                       ║
+ ║  WITH SAM SPEECH SYNTHESIS                                                   ║
  ╚══════════════════════════════════════════════════════════════════════════════╝
 */
 
 #include "AudioCodecManager.h"
+#include "AudioCodec_SAM.h"
 
 AudioCodecManager::AudioCodecManager() 
-  : filesystem(nullptr), wavCodec(nullptr) {}
+  : filesystem(nullptr), wavCodec(nullptr), samCodec(nullptr) {}
 
 AudioCodecManager::~AudioCodecManager() {
   if (wavCodec) delete wavCodec;
+  if (samCodec) delete samCodec;
 }
 
 void AudioCodecManager::init(AudioFilesystem* fs) {
   filesystem = fs;
   
   // Register built-in codecs
-  wavCodec = new AudioCodec_WAV(filesystem);
+  registerBuiltinCodecs();
   
   Serial.println(F("[CODEC] Manager initialized"));
-  Serial.printf("[CODEC] Registered: %s\n", wavCodec->getName());
+}
+
+void AudioCodecManager::registerBuiltinCodecs() {
+  // WAV Codec
+  wavCodec = new AudioCodec_WAV(filesystem);
+  Serial.printf("[CODEC] Registered: %s v%s\n", 
+                wavCodec->getName(), wavCodec->getVersion());
+  
+  // SAM Speech Synthesis
+  samCodec = new AudioCodec_SAM(filesystem);
+  Serial.printf("[CODEC] Registered: %s v%s\n", 
+                samCodec->getName(), samCodec->getVersion());
 }
 
 AudioCodec* AudioCodecManager::detectCodec(const char* filename) {
@@ -34,7 +48,15 @@ AudioCodec* AudioCodecManager::detectCodec(const char* filename) {
     }
   }
   
-  // Future: Check other codecs
+  // Check SAM (Text ohne Extension oder .txt/.sam/.speech)
+  if (samCodec && (fn.indexOf(".") == -1 || 
+      fn.endsWith(".txt") || 
+      fn.endsWith(".sam") || 
+      fn.endsWith(".speech"))) {
+    if (samCodec->probe(filename)) {
+      return samCodec;
+    }
+  }
   
   return nullptr;
 }
@@ -49,15 +71,37 @@ void AudioCodecManager::listCodecs() {
   
   // WAV
   if (wavCodec) {
-    CodecCapabilities caps = wavCodec->getCapabilities();
-    Serial.printf("  %-7s %-9s Built-in    %d KB     %.0f%%     .wav\n",
-                  wavCodec->getName(),
-                  wavCodec->getVersion(),
-                  caps.ramUsage / 1024,
-                  caps.cpuUsage * 100);
+    printCodecLine(wavCodec);
+  }
+  
+  // SAM
+  if (samCodec) {
+    printCodecLine(samCodec);
   }
   
   Serial.println();
+}
+
+void AudioCodecManager::printCodecLine(AudioCodec* codec) {
+  if (!codec) return;
+  
+  CodecCapabilities caps = codec->getCapabilities();
+  
+  // Get extensions
+  String exts = "";
+  const char** extList = codec->getExtensions();
+  for (int i = 0; extList[i] != nullptr && i < 3; i++) {
+    if (i > 0) exts += " ";
+    exts += ".";
+    exts += extList[i];
+  }
+  
+  Serial.printf("  %-7s %-9s Built-in    %2d KB     %3.0f%%     %s\n",
+                codec->getName(),
+                codec->getVersion(),
+                caps.ramUsage / 1024,
+                caps.cpuUsage * 100,
+                exts.c_str());
 }
 
 AudioCodec* AudioCodecManager::getCodec(const char* name) {
@@ -65,7 +109,54 @@ AudioCodec* AudioCodecManager::getCodec(const char* name) {
     return wavCodec;
   }
   
+  if (strcmp(name, "sam") == 0 || strcmp(name, "SAM") == 0 || 
+      strcmp(name, "speech") == 0) {
+    return samCodec;
+  }
+  
   return nullptr;
+}
+
+AudioCodec_SAM* AudioCodecManager::getSAMCodec() {
+  return samCodec;
+}
+
+bool AudioCodecManager::speak(const String& text, SAMVoicePreset preset) {
+  if (!samCodec) {
+    Serial.println(F("[CODEC] SAM not available!"));
+    return false;
+  }
+  
+  // Set voice preset
+  samCodec->setVoicePreset(preset);
+  
+  // Synthesize text
+  if (!samCodec->synthesizeText(text)) {
+    Serial.println(F("[CODEC] Speech synthesis failed!"));
+    return false;
+  }
+  
+  Serial.printf("[CODEC] Synthesized: %u ms\n", samCodec->getDuration());
+  return true;
+}
+
+bool AudioCodecManager::speakWithParams(const String& text, const SAMVoiceParams& params) {
+  if (!samCodec) {
+    Serial.println(F("[CODEC] SAM not available!"));
+    return false;
+  }
+  
+  // Set custom parameters
+  samCodec->setVoiceParams(params);
+  
+  // Synthesize text
+  if (!samCodec->synthesizeText(text)) {
+    Serial.println(F("[CODEC] Speech synthesis failed!"));
+    return false;
+  }
+  
+  Serial.printf("[CODEC] Synthesized: %u ms\n", samCodec->getDuration());
+  return true;
 }
 
 void AudioCodecManager::showCodecInfo(const char* name) {
@@ -104,7 +195,7 @@ void AudioCodecManager::showCodecInfo(const char* name) {
   const char** exts = codec->getExtensions();
   Serial.print(F("  "));
   for (int i = 0; exts[i] != nullptr; i++) {
-    Serial.printf("%s ", exts[i]);
+    Serial.printf(".%s ", exts[i]);
   }
   Serial.println();
   
