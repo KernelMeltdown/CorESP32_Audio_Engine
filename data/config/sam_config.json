@@ -1,0 +1,259 @@
+{
+  "samEngine": {
+    "version": "2.0-esp32",
+    "description": "Modern SAM Speech Synthesis - No C64 Legacy",
+    
+    "audio": {
+      "sampleRate": 22050,
+      "bufferSize": 8192,
+      "usePSRAM": true,
+      "enableDMA": true
+    },
+    
+    "multicore": {
+      "useCore1ForSynthesis": true,
+      "synthTaskPriority": 10,
+      "synthTaskStackSize": 8192
+    },
+    
+    "presets": {
+      "natural": {
+        "speed": 68,
+        "pitch": 70,
+        "throat": 135,
+        "mouth": 140,
+        "smoothing": 40,
+        "interpolation": 45,
+        "formantBoost": 20,
+        "bassBoost": 2,
+        "pitchVariance": 0.12,
+        "speedVariance": 0.06,
+        "enableProsody": true
+      },
+      "clear": {
+        "speed": 75,
+        "pitch": 64,
+        "throat": 128,
+        "mouth": 128,
+        "smoothing": 25,
+        "interpolation": 30,
+        "formantBoost": 10,
+        "bassBoost": 0,
+        "pitchVariance": 0.08,
+        "speedVariance": 0.04,
+        "enableProsody": true
+      },
+      "warm": {
+        "speed": 65,
+        "pitch": 60,
+        "throat": 145,
+        "mouth": 150,
+        "smoothing": 45,
+        "interpolation": 50,
+        "formantBoost": 25,
+        "bassBoost": 4,
+        "pitchVariance": 0.15,
+        "speedVariance": 0.08,
+        "enableProsody": true
+      },
+      "robot": {
+        "speed": 90,
+        "pitch": 50,
+        "throat": 110,
+        "mouth": 110,
+        "smoothing": 10,
+        "interpolation": 15,
+        "formantBoost": 5,
+        "bassBoost": -2,
+        "pitchVariance": 0.02,
+        "speedVariance": 0.01,
+        "enableProsody": false
+      },
+      "child": {
+        "speed": 80,
+        "pitch": 95,
+        "throat": 115,
+        "mouth": 120,
+        "smoothing": 35,
+        "interpolation": 40,
+        "formantBoost": 18,
+        "bassBoost": -1,
+        "pitchVariance": 0.18,
+        "speedVariance": 0.10,
+        "enableProsody": true
+      },
+      "deep": {
+        "speed": 62,
+        "pitch": 45,
+        "throat": 155,
+        "mouth": 160,
+        "smoothing": 50,
+        "interpolation": 55,
+        "formantBoost": 22,
+        "bassBoost": 6,
+        "pitchVariance": 0.10,
+        "speedVariance": 0.05,
+        "enableProsody": true
+      }
+    },
+    
+    "phonemes": {
+      "useModernFormants": true,
+      "enableCoarticulation": true,
+      "coarticulationStrength": 0.6,
+      
+      "durationModifiers": {
+        "stressedVowel": 1.3,
+        "unstressedVowel": 0.8,
+        "preStopConsonant": 1.2,
+        "sentenceFinal": 1.5,
+        "wordBoundary": 1.1
+      },
+      
+      "transitionTimes": {
+        "vowelToVowel": 80,
+        "vowelToConsonant": 60,
+        "consonantToVowel": 50,
+        "consonantToConsonant": 40
+      }
+    },
+    
+    "prosody": {
+      "enabled": true,
+      
+      "intonation": {
+        "sentenceRise": 0.15,
+        "sentenceFall": -0.12,
+        "questionRise": 0.25,
+        "emphasisRise": 0.18
+      },
+      
+      "pauses": {
+        "comma": 150,
+        "period": 300,
+        "question": 250,
+        "exclamation": 200,
+        "colon": 180,
+        "semicolon": 200
+      },
+      
+      "stress": {
+        "primaryStress": 1.3,
+        "secondaryStress": 1.1,
+        "unstressed": 0.85
+      }
+    },
+    
+    "dsp": {
+      "smoothing": {
+        "enabled": true,
+        "algorithm": "movingAverage",
+        "windowSize": 9,
+        "weights": [1, 2, 3, 2, 1]
+      },
+      
+      "interpolation": {
+        "enabled": true,
+        "algorithm": "cubic",
+        "lookAhead": 2,
+        "lookBehind": 2
+      },
+      
+      "formantEnhancement": {
+        "enabled": true,
+        "f1Boost": 1.15,
+        "f2Boost": 1.12,
+        "f3Boost": 1.08
+      },
+      
+      "eq": {
+        "enabled": true,
+        "bassFreq": 200,
+        "trebleFreq": 4000,
+        "formantPeaks": [500, 1500, 2500]
+      },
+      
+      "effects": {
+        "noiseGate": {
+          "enabled": false,
+          "threshold": 0.02
+        },
+        "compression": {
+          "enabled": false,
+          "threshold": 0.7,
+          "ratio": 3.0,
+          "attack": 0.001,
+          "release": 0.1
+        },
+        "reverb": {
+          "enabled": false,
+          "roomSize": 0.3,
+          "damping": 0.5,
+          "mix": 0.15
+        }
+      }
+    },
+    
+    "textProcessing": {
+      "expandNumbers": true,
+      "expandAbbreviations": true,
+      "normalizeWhitespace": true,
+      "handlePunctuation": true,
+      
+      "abbreviations": {
+        "Mr.": "Mister",
+        "Mrs.": "Missus",
+        "Dr.": "Doctor",
+        "Prof.": "Professor",
+        "etc.": "et cetera",
+        "i.e.": "that is",
+        "e.g.": "for example"
+      }
+    },
+    
+    "dictionary": {
+      "useCustomDictionary": true,
+      "dictionaryPath": "/sam_dictionary.json",
+      
+      "commonWords": {
+        "the": "DHAX",
+        "a": "AX",
+        "is": "IHZ",
+        "are": "AAR",
+        "was": "WAAZ",
+        "were": "WER",
+        "hello": "HAXLOW",
+        "world": "WERLD",
+        "ESP32": "IY EH S PIY THERTIY TUW"
+      }
+    },
+    
+    "debugging": {
+      "enableLogging": false,
+      "logPhonemes": false,
+      "logFormants": false,
+      "logDSP": false,
+      "printStatistics": false,
+      
+      "performance": {
+        "measureSynthesisTime": true,
+        "measureCPULoad": true,
+        "trackBufferUnderruns": true
+      }
+    },
+    
+    "limits": {
+      "maxTextLength": 1000,
+      "maxQueueSize": 10,
+      "maxPhonemeSequenceLength": 500,
+      "synthesisTimeout_ms": 10000
+    },
+    
+    "compatibility": {
+      "originalSAMMode": false,
+      "c64Emulation": false,
+      "legacyPhonemes": false,
+      "note": "Set originalSAMMode to true for C64-compatible output (not recommended)"
+    }
+  }
+}
