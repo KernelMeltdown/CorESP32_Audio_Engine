@@ -1,5 +1,4 @@
 // AudioSettings.h - ESP32 Audio OS v1.9
-// Runtime Configuration with LFO Modulation
 
 #ifndef AUDIO_SETTINGS_H
 #define AUDIO_SETTINGS_H
