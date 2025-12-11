@@ -1,0 +1,192 @@
+// Füge diese Funktion in dein CorESP32_Audio_Engine.ino ein:
+
+// ============================================================================
+// SAM SPEECH SYNTHESIS - Beispiel-Funktionen
+// ============================================================================
+
+void playSAMSpeech(const String& text) {
+  Serial.println(F("\n--- SAM Speech Synthesis ---"));
+  
+  // Hole SAM Codec vom Manager
+  AudioCodec_SAM* sam = codecManager.getSAMCodec();
+  if (!sam) {
+    Serial.println(F("[ERROR] SAM codec not available!"));
+    return;
+  }
+  
+  // Synthetisiere Text
+  if (!sam->synthesizeText(text)) {
+    Serial.println(F("[ERROR] Synthesis failed!"));
+    return;
+  }
+  
+  Serial.printf("[SAM] Duration: %u ms\n", sam->getDuration());
+  Serial.printf("[SAM] Playing...\n");
+  
+  // Audio-Buffer für Playback
+  const size_t BUFFER_SIZE = 1024;
+  int16_t buffer[BUFFER_SIZE];
+  
+  // Lese und spiele Audio ab
+  while (sam->isPlaying()) {
+    size_t samplesRead = sam->read(buffer, BUFFER_SIZE);
+    if (samplesRead == 0) break;
+    
+    // METHODE 1: Wenn du eine writeBuffer() Methode hast:
+    // audio.writeBuffer(buffer, samplesRead);
+    
+    // METHODE 2: Wenn du I2S direkt nutzt (z.B. in AudioEngine):
+    // audio.writeToI2S(buffer, samplesRead);
+    
+    // METHODE 3: Temporär für Tests - einfach weitergehen (stumm):
+    // (Buffer wird generiert aber nicht abgespielt)
+    
+    // METHODE 4: Wenn du keinen direkten Playback hast:
+    // Speichere in eine Datei für späteren Test:
+    // saveToWAV("/test.wav", buffer, samplesRead);
+    
+    delay(5); // Kleine Verzögerung um Overflow zu vermeiden
+  }
+  
+  Serial.println(F("[SAM] Playback complete\n"));
+}
+
+// Alternative: Direkt als "Datei" über detectCodec spielen
+void playSAMViaCodecManager(const String& text) {
+  Serial.println(F("\n--- SAM via Codec Manager ---"));
+  
+  // Codec automatisch erkennen lassen
+  AudioCodec* codec = codecManager.detectCodec(text.c_str());
+  
+  if (!codec) {
+    Serial.println(F("[ERROR] No codec found for text!"));
+    return;
+  }
+  
+  Serial.printf("[CODEC] Using: %s\n", codec->getName());
+  
+  // "Öffne" den Text
+  if (!codec->open(text.c_str())) {
+    Serial.println(F("[ERROR] Failed to open/synthesize!"));
+    return;
+  }
+  
+  // Spiele ab
+  const size_t BUFFER_SIZE = 1024;
+  int16_t buffer[BUFFER_SIZE];
+  
+  while (codec->isOpen()) {
+    size_t samplesRead = codec->read(buffer, BUFFER_SIZE);
+    if (samplesRead == 0) break;
+    
+    // Hier Audio abspielen (siehe oben)
+    delay(5);
+  }
+  
+  codec->close();
+  Serial.println(F("[SAM] Complete\n"));
+}
+
+// Test verschiedene Voice Presets
+void testSAMVoices() {
+  Serial.println(F("\n--- Testing SAM Voice Presets ---\n"));
+  
+  AudioCodec_SAM* sam = codecManager.getSAMCodec();
+  if (!sam) return;
+  
+  const char* texts[] = {
+    "Natural voice preset.",
+    "Clear voice preset.",
+    "Warm voice preset.",
+    "Robot voice preset."
+  };
+  
+  SAMVoicePreset presets[] = {
+    SAMVoicePreset::NATURAL,
+    SAMVoicePreset::CLEAR,
+    SAMVoicePreset::WARM,
+    SAMVoicePreset::ROBOT
+  };
+  
+  for (int i = 0; i < 4; i++) {
+    Serial.printf("Voice %d: %s\n", i+1, texts[i]);
+    sam->setVoicePreset(presets[i]);
+    playSAMSpeech(texts[i]);
+    delay(500);
+  }
+}
+
+// Custom Voice Parameters
+void testCustomVoiceParams() {
+  Serial.println(F("\n--- Custom Voice Parameters ---\n"));
+  
+  AudioCodec_SAM* sam = codecManager.getSAMCodec();
+  if (!sam) return;
+  
+  // Hole aktuelle Parameter
+  SAMVoiceParams params = sam->getVoiceParams();
+  
+  // Modifiziere
+  params.speed = 80;          // Schneller
+  params.pitch = 75;          // Höher
+  params.smoothing = 50;      // Mehr Glättung
+  params.formantBoost = 30;   // Mehr Klarheit
+  
+  sam->setVoiceParams(params);
+  
+  playSAMSpeech("Testing custom voice parameters.");
+}
+
+// ============================================================================
+// Füge diese Kommandos zu deinem Console-Handler hinzu:
+// ============================================================================
+
+// In AudioConsole.cpp oder wo du Kommandos verarbeitest:
+
+void handleSAMCommands(const String& cmd) {
+  if (cmd.startsWith("speak ")) {
+    String text = cmd.substring(6);
+    playSAMSpeech(text);
+  }
+  else if (cmd == "voices") {
+    testSAMVoices();
+  }
+  else if (cmd.startsWith("voice ")) {
+    String preset = cmd.substring(6);
+    AudioCodec_SAM* sam = codecManager.getSAMCodec();
+    if (sam) {
+      if (preset == "natural") sam->setVoicePreset(SAMVoicePreset::NATURAL);
+      else if (preset == "clear") sam->setVoicePreset(SAMVoicePreset::CLEAR);
+      else if (preset == "warm") sam->setVoicePreset(SAMVoicePreset::WARM);
+      else if (preset == "robot") sam->setVoicePreset(SAMVoicePreset::ROBOT);
+      Serial.printf("[SAM] Voice preset: %s\n", preset.c_str());
+    }
+  }
+  else if (cmd == "sam info") {
+    codecManager.showCodecInfo("sam");
+  }
+}
+
+// ============================================================================
+// SETUP - Teste SAM beim Start
+// ============================================================================
+
+void setup() {
+  // ... dein bestehender Setup-Code ...
+  
+  // Nach der Initialisierung:
+  
+  // Optional: Teste SAM
+  Serial.println(F("\n╔════════════════════════════════════════════════════════╗"));
+  Serial.println(F("║              TESTING SAM SPEECH SYNTHESIS             ║"));
+  Serial.println(F("╚════════════════════════════════════════════════════════╝\n"));
+  
+  // Einfacher Test
+  playSAMSpeech("Hello! I am SAM, the speech synthesizer for ESP32.");
+  
+  // Oder teste verschiedene Voices
+  // testSAMVoices();
+  
+  Serial.println(F("\n✓ SAM Test Complete\n"));
+  Serial.println(F("Commands: speak <text>, voice <preset>, voices, sam info"));
+}

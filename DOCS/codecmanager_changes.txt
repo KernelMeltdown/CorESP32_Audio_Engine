@@ -1,0 +1,45 @@
+// AudioCodecManager.cpp - Änderungen für SAM Integration
+
+// 1. Am Anfang der Datei nach den anderen includes:
+#include "AudioCodec_SAM.h"
+
+// 2. In der registerCodecs() Methode (oder wo du Codecs registrierst):
+void AudioCodecManager::registerCodecs() {
+    // Deine bestehenden Codecs...
+    registerCodec("mp3", new AudioCodec_MP3());
+    registerCodec("wav", new AudioCodec_WAV());
+    
+    // NEU: SAM Codec registrieren
+    registerCodec("sam", new AudioCodec_SAM());
+    registerCodec("txt", new AudioCodec_SAM());  // Auch für .txt Dateien
+    registerCodec("speech", new AudioCodec_SAM()); // Oder eigene Extension
+    
+    Serial.println("[CodecManager] SAM Speech Synthesis registered");
+}
+
+// 3. Optional: Helper-Methode für direkte SAM-Nutzung
+AudioCodec_SAM* AudioCodecManager::getSAMCodec() {
+    AudioCodec* codec = getCodec("sam");
+    return static_cast<AudioCodec_SAM*>(codec);
+}
+
+// 4. Optional: Direkte Sprachsynthese-Funktion
+bool AudioCodecManager::speak(const String& text, SAMVoicePreset preset) {
+    AudioCodec_SAM* sam = getSAMCodec();
+    if (!sam) {
+        Serial.println("[CodecManager] SAM codec not available");
+        return false;
+    }
+    
+    // Setze Preset
+    sam->setVoicePreset(preset);
+    
+    // Synthetisiere Text
+    if (!sam->synthesizeText(text)) {
+        return false;
+    }
+    
+    // Spiele über AudioEngine ab
+    // (Du musst hier deine playback-Methode einfügen)
+    return true;
+}
