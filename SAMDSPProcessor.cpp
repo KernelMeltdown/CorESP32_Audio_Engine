@@ -1,332 +1,205 @@
-// SAMDSPProcessor.cpp - Audio Enhancement Implementation
-// ESP32-optimized DSP processing
-
+/*
+ ╔══════════════════════════════════════════════════════════════════════════════╗
+ ║  SAM DSP PROCESSOR - Implementation                                         ║
+ ╚══════════════════════════════════════════════════════════════════════════════╝
+*/
 #include "SAMDSPProcessor.h"
-#include <Arduino.h>
+#include <cmath>
+#include <algorithm>
 
-// ============================================================================
-// Constructor & Destructor
-// ============================================================================
+// ═══════════════════════════════════════════════════════════════════════════
+// Constructor / Destructor
+// ═══════════════════════════════════════════════════════════════════════════
 
-SAMDSPProcessor::SAMDSPProcessor()
-    : m_sampleRate(22050)
-    , m_reverbBuffer(nullptr)
-    , m_reverbPos(0)
-    , m_compressorEnvelope(0)
+SAMDSPProcessor::SAMDSPProcessor() 
+    : m_tempBuffer(nullptr)
+    , m_tempBufferSize(0)
 {
 }
 
 SAMDSPProcessor::~SAMDSPProcessor() {
-    if (m_reverbBuffer) {
-        free(m_reverbBuffer);
+    if (m_tempBuffer) {
+        delete[] m_tempBuffer;
     }
 }
 
-// ============================================================================
-// Initialization
-// ============================================================================
+// ═══════════════════════════════════════════════════════════════════════════
+// Buffer Management
+// ═══════════════════════════════════════════════════════════════════════════
 
-void SAMDSPProcessor::begin(uint32_t sampleRate) {
-    m_sampleRate = sampleRate;
-    
-    // Initialize filters
-    m_bassFilter.reset();
-    m_trebleFilter.reset();
-    m_formantFilter1.reset();
-    m_formantFilter2.reset();
-    m_formantFilter3.reset();
-    
-    // Design default EQ filters
-    designLowShelf(m_bassFilter, 200.0f, 0.0f);
-    designHighShelf(m_trebleFilter, 4000.0f, 0.0f);
-    designPeaking(m_formantFilter1, 500.0f, 0.0f, 2.0f);
-    designPeaking(m_formantFilter2, 1500.0f, 0.0f, 2.0f);
-    designPeaking(m_formantFilter3, 2500.0f, 0.0f, 2.0f);
-    
-    // Allocate reverb buffer
-    if (!m_reverbBuffer) {
-        m_reverbBuffer = (float*)calloc(MAX_REVERB_DELAY, sizeof(float));
+void SAMDSPProcessor::ensureTempBuffer(size_t samples) {
+    if (samples > m_tempBufferSize) {
+        if (m_tempBuffer) delete[] m_tempBuffer;
+        m_tempBuffer = new float[samples];
+        m_tempBufferSize = samples;
     }
 }
 
-// ============================================================================
-// Main Processing Pipeline
-// ============================================================================
+// ═══════════════════════════════════════════════════════════════════════════
+// Smoothing
+// ═══════════════════════════════════════════════════════════════════════════
 
-void SAMDSPProcessor::processBuffer(float* buffer, size_t length, 
-                                   float smoothAmount, float interpAmount,
-                                   float formantAmount, float bassdB) {
-    if (!buffer || length == 0) return;
+void SAMDSPProcessor::applySmoothing(float* buffer, size_t samples, float amount) {
+    if (!buffer || samples < 2) return;
     
-    // 1. Smoothing (reduces digital artifacts)
-    if (smoothAmount > 0.01f) {
-        applySmoothing(buffer, length, smoothAmount);
-    }
+    ensureTempBuffer(samples);
+    memcpy(m_tempBuffer, buffer, samples * sizeof(float));
     
-    // 2. Cubic interpolation (smooths formant transitions)
-    if (interpAmount > 0.01f) {
-        applyCubicInterpolation(buffer, length, interpAmount);
-    }
-    
-    // 3. Formant boost (enhances intelligibility)
-    if (formantAmount > 0.01f) {
-        applyFormantBoost(buffer, length, formantAmount);
-    }
-    
-    // 4. Bass EQ
-    if (fabs(bassdB) > 0.1f) {
-        applyBassBoost(buffer, length, bassdB);
+    // Simple box filter with variable amount
+    for (size_t i = 1; i < samples - 1; i++) {
+        float smoothed = (m_tempBuffer[i-1] + m_tempBuffer[i] + m_tempBuffer[i+1]) / 3.0f;
+        buffer[i] = std::lerp(m_tempBuffer[i], smoothed, amount);
     }
 }
 
-// ============================================================================
-// Smoothing (Moving Average)
-// ============================================================================
-
-void SAMDSPProcessor::applySmoothing(float* buffer, size_t length, float amount) {
-    if (amount <= 0 || length < 5) return;
-    
-    // Weighted moving average with 9-point window
-    const float weights[] = {0.05f, 0.1f, 0.15f, 0.2f, 0.4f, 0.2f, 0.15f, 0.1f, 0.05f};
-    const int halfWindow = 4;
-    
-    // Create temporary buffer
-    float* temp = (float*)malloc(length * sizeof(float));
-    if (!temp) return;
-    
-    memcpy(temp, buffer, length * sizeof(float));
-    
-    // Apply weighted average
-    for (size_t i = halfWindow; i < length - halfWindow; i++) {
-        float smoothed = 0;
-        
-        for (int j = -halfWindow; j <= halfWindow; j++) {
-            smoothed += temp[i + j] * weights[j + halfWindow];
-        }
-        
-        // Blend with original
-        buffer[i] = std::lerp(temp[i], smoothed, amount);
-    }
-    
-    free(temp);
-}
-
-// ============================================================================
+// ═══════════════════════════════════════════════════════════════════════════
 // Cubic Interpolation
-// ============================================================================
+// ═══════════════════════════════════════════════════════════════════════════
 
 float SAMDSPProcessor::cubicInterpolate(float p0, float p1, float p2, float p3, float t) {
-    // Catmull-Rom cubic interpolation
-    float a0 = p3 - p2 - p0 + p1;
-    float a1 = p0 - p1 - a0;
-    float a2 = p2 - p0;
-    float a3 = p1;
+    float a = -0.5f * p0 + 1.5f * p1 - 1.5f * p2 + 0.5f * p3;
+    float b = p0 - 2.5f * p1 + 2.0f * p2 - 0.5f * p3;
+    float c = -0.5f * p0 + 0.5f * p2;
+    float d = p1;
     
-    return a0 * t * t * t + a1 * t * t + a2 * t + a3;
+    return a * t * t * t + b * t * t + c * t + d;
 }
 
-void SAMDSPProcessor::applyCubicInterpolation(float* buffer, size_t length, float amount) {
-    if (amount <= 0 || length < 4) return;
+void SAMDSPProcessor::applyCubicInterpolation(float* buffer, size_t samples, float amount) {
+    if (!buffer || samples < 4) return;
     
-    float* temp = (float*)malloc(length * sizeof(float));
-    if (!temp) return;
+    ensureTempBuffer(samples);
+    memcpy(m_tempBuffer, buffer, samples * sizeof(float));
     
-    memcpy(temp, buffer, length * sizeof(float));
-    
-    // Apply cubic interpolation
-    for (size_t i = 2; i < length - 2; i++) {
-        float p0 = temp[i - 2];
-        float p1 = temp[i - 1];
-        float p2 = temp[i];
-        float p3 = temp[i + 1];
-        
-        float interpolated = cubicInterpolate(p0, p1, p2, p3, 0.5f);
-        
-        // Blend with original
-        buffer[i] = std::lerp(temp[i], interpolated, amount);
-    }
-    
-    free(temp);
-}
-
-// ============================================================================
-// Formant Boost (Enhances Speech Intelligibility)
-// ============================================================================
-
-void SAMDSPProcessor::applyFormantBoost(float* buffer, size_t length, float amount) {
-    if (amount <= 0) return;
-    
-    // Boost signal amplitude in formant regions
-    float boostFactor = 1.0f + amount * 0.3f;
-    
-    for (size_t i = 0; i < length; i++) {
-        float sample = buffer[i];
-        
-        // Enhance amplitude
-        float boosted = sample * boostFactor;
-        
-        // Soft clipping to prevent excessive peaks
-        if (boosted > 1.0f) {
-            boosted = 1.0f - expf(-(boosted - 1.0f));
-        } else if (boosted < -1.0f) {
-            boosted = -1.0f + expf(-(fabs(boosted) - 1.0f));
-        }
-        
-        buffer[i] = boosted;
+    for (size_t i = 2; i < samples - 2; i++) {
+        float interpolated = cubicInterpolate(
+            m_tempBuffer[i-2],
+            m_tempBuffer[i-1],
+            m_tempBuffer[i],
+            m_tempBuffer[i+1],
+            0.5f
+        );
+        buffer[i] = std::lerp(m_tempBuffer[i], interpolated, amount);
     }
 }
 
-// ============================================================================
-// Bass Boost/Cut
-// ============================================================================
+// ═══════════════════════════════════════════════════════════════════════════
+// Formant Boost
+// ═══════════════════════════════════════════════════════════════════════════
 
-void SAMDSPProcessor::applyBassBoost(float* buffer, size_t length, float dB) {
-    if (fabs(dB) < 0.1f) return;
+void SAMDSPProcessor::applyFormantBoost(float* buffer, size_t samples, 
+                                       float freq, float gain) {
+    if (!buffer || samples == 0) return;
     
-    // Redesign bass filter with new gain
-    designLowShelf(m_bassFilter, 200.0f, dB);
+    // Design peaking EQ filter for formant boost
+    BiquadCoeffs coeffs = designPeakingEQ(freq, 22050.0f, 2.0f, 
+                                         20.0f * std::log10(gain));
+    BiquadState state;
     
-    // Apply filter
-    for (size_t i = 0; i < length; i++) {
-        buffer[i] = m_bassFilter.process(buffer[i]);
+    applyBiquad(buffer, samples, coeffs, state);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Bass/Treble
+// ═══════════════════════════════════════════════════════════════════════════
+
+void SAMDSPProcessor::applyBassBoost(float* buffer, size_t samples, float gain) {
+    if (!buffer || samples == 0) return;
+    
+    // Low shelf filter at 200 Hz
+    BiquadCoeffs coeffs = designPeakingEQ(200.0f, 22050.0f, 1.0f, 
+                                         20.0f * std::log10(gain));
+    BiquadState state;
+    
+    applyBiquad(buffer, samples, coeffs, state);
+}
+
+void SAMDSPProcessor::applyTrebleAdjust(float* buffer, size_t samples, float gain) {
+    if (!buffer || samples == 0) return;
+    
+    // High shelf filter at 4000 Hz
+    BiquadCoeffs coeffs = designPeakingEQ(4000.0f, 22050.0f, 1.0f, 
+                                         20.0f * std::log10(gain));
+    BiquadState state;
+    
+    applyBiquad(buffer, samples, coeffs, state);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Biquad Filter
+// ═══════════════════════════════════════════════════════════════════════════
+
+void SAMDSPProcessor::applyBiquad(float* buffer, size_t samples,
+                                 const BiquadCoeffs& coeffs, BiquadState& state) {
+    if (!buffer || samples == 0) return;
+    
+    for (size_t i = 0; i < samples; i++) {
+        float x = buffer[i];
+        float y = coeffs.b0 * x + coeffs.b1 * state.x1 + coeffs.b2 * state.x2
+                - coeffs.a1 * state.y1 - coeffs.a2 * state.y2;
+        
+        state.x2 = state.x1;
+        state.x1 = x;
+        state.y2 = state.y1;
+        state.y1 = y;
+        
+        buffer[i] = y;
     }
 }
 
-void SAMDSPProcessor::applyTrebleBoost(float* buffer, size_t length, float dB) {
-    if (fabs(dB) < 0.1f) return;
+// ═══════════════════════════════════════════════════════════════════════════
+// Filter Design
+// ═══════════════════════════════════════════════════════════════════════════
+
+BiquadCoeffs SAMDSPProcessor::designLowpass(float freq, float sampleRate, float Q) {
+    BiquadCoeffs coeffs;
     
-    designHighShelf(m_trebleFilter, 4000.0f, dB);
+    float w0 = 2.0f * M_PI * freq / sampleRate;
+    float alpha = std::sin(w0) / (2.0f * Q);
+    float cosw0 = std::cos(w0);
     
-    for (size_t i = 0; i < length; i++) {
-        buffer[i] = m_trebleFilter.process(buffer[i]);
-    }
+    float a0 = 1.0f + alpha;
+    coeffs.b0 = (1.0f - cosw0) / (2.0f * a0);
+    coeffs.b1 = (1.0f - cosw0) / a0;
+    coeffs.b2 = (1.0f - cosw0) / (2.0f * a0);
+    coeffs.a1 = (-2.0f * cosw0) / a0;
+    coeffs.a2 = (1.0f - alpha) / a0;
+    
+    return coeffs;
 }
 
-// ============================================================================
-// Biquad Filter Design
-// ============================================================================
-
-void SAMDSPProcessor::designLowShelf(BiquadFilter& filter, float freq, float gain, float Q) {
-    float A = powf(10.0f, gain / 40.0f);
-    float w0 = 2.0f * PI * freq / m_sampleRate;
-    float cosw0 = cosf(w0);
-    float sinw0 = sinf(w0);
-    float alpha = sinw0 / (2.0f * Q);
+BiquadCoeffs SAMDSPProcessor::designHighpass(float freq, float sampleRate, float Q) {
+    BiquadCoeffs coeffs;
     
-    float b0 = A * ((A + 1.0f) - (A - 1.0f) * cosw0 + 2.0f * sqrtf(A) * alpha);
-    float b1 = 2.0f * A * ((A - 1.0f) - (A + 1.0f) * cosw0);
-    float b2 = A * ((A + 1.0f) - (A - 1.0f) * cosw0 - 2.0f * sqrtf(A) * alpha);
-    float a0 = (A + 1.0f) + (A - 1.0f) * cosw0 + 2.0f * sqrtf(A) * alpha;
-    float a1 = -2.0f * ((A - 1.0f) + (A + 1.0f) * cosw0);
-    float a2 = (A + 1.0f) + (A - 1.0f) * cosw0 - 2.0f * sqrtf(A) * alpha;
+    float w0 = 2.0f * M_PI * freq / sampleRate;
+    float alpha = std::sin(w0) / (2.0f * Q);
+    float cosw0 = std::cos(w0);
     
-    filter.b0 = b0 / a0;
-    filter.b1 = b1 / a0;
-    filter.b2 = b2 / a0;
-    filter.a1 = a1 / a0;
-    filter.a2 = a2 / a0;
-    filter.reset();
+    float a0 = 1.0f + alpha;
+    coeffs.b0 = (1.0f + cosw0) / (2.0f * a0);
+    coeffs.b1 = -(1.0f + cosw0) / a0;
+    coeffs.b2 = (1.0f + cosw0) / (2.0f * a0);
+    coeffs.a1 = (-2.0f * cosw0) / a0;
+    coeffs.a2 = (1.0f - alpha) / a0;
+    
+    return coeffs;
 }
 
-void SAMDSPProcessor::designHighShelf(BiquadFilter& filter, float freq, float gain, float Q) {
-    float A = powf(10.0f, gain / 40.0f);
-    float w0 = 2.0f * PI * freq / m_sampleRate;
-    float cosw0 = cosf(w0);
-    float sinw0 = sinf(w0);
-    float alpha = sinw0 / (2.0f * Q);
+BiquadCoeffs SAMDSPProcessor::designPeakingEQ(float freq, float sampleRate, 
+                                              float Q, float gainDB) {
+    BiquadCoeffs coeffs;
     
-    float b0 = A * ((A + 1.0f) + (A - 1.0f) * cosw0 + 2.0f * sqrtf(A) * alpha);
-    float b1 = -2.0f * A * ((A - 1.0f) + (A + 1.0f) * cosw0);
-    float b2 = A * ((A + 1.0f) + (A - 1.0f) * cosw0 - 2.0f * sqrtf(A) * alpha);
-    float a0 = (A + 1.0f) - (A - 1.0f) * cosw0 + 2.0f * sqrtf(A) * alpha;
-    float a1 = 2.0f * ((A - 1.0f) - (A + 1.0f) * cosw0);
-    float a2 = (A + 1.0f) - (A - 1.0f) * cosw0 - 2.0f * sqrtf(A) * alpha;
+    float A = std::pow(10.0f, gainDB / 40.0f);
+    float w0 = 2.0f * M_PI * freq / sampleRate;
+    float alpha = std::sin(w0) / (2.0f * Q);
+    float cosw0 = std::cos(w0);
     
-    filter.b0 = b0 / a0;
-    filter.b1 = b1 / a0;
-    filter.b2 = b2 / a0;
-    filter.a1 = a1 / a0;
-    filter.a2 = a2 / a0;
-    filter.reset();
-}
-
-void SAMDSPProcessor::designPeaking(BiquadFilter& filter, float freq, float gain, float Q) {
-    float A = powf(10.0f, gain / 40.0f);
-    float w0 = 2.0f * PI * freq / m_sampleRate;
-    float cosw0 = cosf(w0);
-    float sinw0 = sinf(w0);
-    float alpha = sinw0 / (2.0f * Q);
-    
-    float b0 = 1.0f + alpha * A;
-    float b1 = -2.0f * cosw0;
-    float b2 = 1.0f - alpha * A;
     float a0 = 1.0f + alpha / A;
-    float a1 = -2.0f * cosw0;
-    float a2 = 1.0f - alpha / A;
+    coeffs.b0 = (1.0f + alpha * A) / a0;
+    coeffs.b1 = (-2.0f * cosw0) / a0;
+    coeffs.b2 = (1.0f - alpha * A) / a0;
+    coeffs.a1 = (-2.0f * cosw0) / a0;
+    coeffs.a2 = (1.0f - alpha / A) / a0;
     
-    filter.b0 = b0 / a0;
-    filter.b1 = b1 / a0;
-    filter.b2 = b2 / a0;
-    filter.a1 = a1 / a0;
-    filter.a2 = a2 / a0;
-    filter.reset();
-}
-
-// ============================================================================
-// Advanced Effects (for future use)
-// ============================================================================
-
-void SAMDSPProcessor::applyNoiseGate(float* buffer, size_t length, float threshold) {
-    for (size_t i = 0; i < length; i++) {
-        if (fabsf(buffer[i]) < threshold) {
-            buffer[i] = 0;
-        }
-    }
-}
-
-void SAMDSPProcessor::applyCompression(float* buffer, size_t length, 
-                                      float threshold, float ratio) {
-    for (size_t i = 0; i < length; i++) {
-        float sample = buffer[i];
-        float amplitude = fabsf(sample);
-        
-        // Envelope follower
-        if (amplitude > m_compressorEnvelope) {
-            m_compressorEnvelope += (amplitude - m_compressorEnvelope) * COMPRESSOR_ATTACK;
-        } else {
-            m_compressorEnvelope += (amplitude - m_compressorEnvelope) * COMPRESSOR_RELEASE;
-        }
-        
-        // Apply compression above threshold
-        if (m_compressorEnvelope > threshold) {
-            float excess = m_compressorEnvelope - threshold;
-            float reduction = excess * (1.0f - 1.0f / ratio);
-            float gain = (threshold + excess - reduction) / m_compressorEnvelope;
-            buffer[i] *= gain;
-        }
-    }
-}
-
-void SAMDSPProcessor::applyReverb(float* buffer, size_t length, 
-                                 float roomSize, float damping) {
-    if (!m_reverbBuffer) return;
-    
-    size_t delayTime = (size_t)(roomSize * MAX_REVERB_DELAY);
-    if (delayTime >= MAX_REVERB_DELAY) delayTime = MAX_REVERB_DELAY - 1;
-    
-    for (size_t i = 0; i < length; i++) {
-        // Get delayed sample
-        float delayed = m_reverbBuffer[m_reverbPos];
-        
-        // Mix with input
-        float output = buffer[i] + delayed * damping;
-        
-        // Store in delay buffer
-        m_reverbBuffer[m_reverbPos] = output;
-        
-        // Advance position
-        m_reverbPos = (m_reverbPos + 1) % MAX_REVERB_DELAY;
-        
-        buffer[i] = output;
-    }
+    return coeffs;
 }

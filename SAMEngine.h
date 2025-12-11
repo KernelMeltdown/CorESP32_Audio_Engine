@@ -1,289 +1,161 @@
-// SAMEngine.h - Modern SAM Speech Synthesizer for ESP32
-// No C64 legacy code - Pure ESP32 optimization
-// Integrated with CorESP32_Audio_Engine
-
+/*
+ ╔══════════════════════════════════════════════════════════════════════════════╗
+ ║  SAM SPEECH SYNTHESIS ENGINE - Header                                       ║
+ ║  Modern ESP32 Implementation - No C64 Legacy Code                           ║
+ ╚══════════════════════════════════════════════════════════════════════════════╝
+*/
 #ifndef SAM_ENGINE_H
 #define SAM_ENGINE_H
 
 #include <Arduino.h>
-#include <ArduinoJson.h>
-#include "AudioEngine.h"
-#include "AudioConfig.h"
+#include <vector>
 
 // Forward declarations
-struct SAMConfig;
-struct PhonemeSequence;
-struct FormantFrame;
+class AudioEngine;
 class SAMDSPProcessor;
 
-// ============================================================================
-// SAM Voice Configuration
-// ============================================================================
+// ═══════════════════════════════════════════════════════════════════════════
+// Voice Presets
+// ═══════════════════════════════════════════════════════════════════════════
 
-struct SAMVoiceParams {
-    // Core SAM parameters (0-255 range for compatibility)
-    uint8_t speed;      // 40-150, default 72
-    uint8_t pitch;      // 20-120, default 64
-    uint8_t throat;     // 90-180, default 128 (affects formant frequencies)
-    uint8_t mouth;      // 90-180, default 128 (affects formant amplitudes)
-    
-    // DSP Enhancement parameters (0-100 range)
-    uint8_t smoothing;     // 0-70, default 35
-    uint8_t interpolation; // 0-80, default 40
-    uint8_t formantBoost;  // 0-50, default 15
-    int8_t bassBoost;      // -10 to +10 dB, default 0
-    
-    // Advanced parameters
-    float pitchVariance;   // 0.0-1.0, adds natural pitch variation
-    float speedVariance;   // 0.0-1.0, adds natural speed variation
-    bool enableProsody;    // Enable prosodic features
-    
-    SAMVoiceParams() :
-        speed(72), pitch(64), throat(128), mouth(128),
-        smoothing(35), interpolation(40), formantBoost(15), bassBoost(0),
-        pitchVariance(0.1f), speedVariance(0.05f), enableProsody(true) {}
+enum class SAMVoicePreset : uint8_t {
+    NATURAL = 0,  // Balanced, natural-sounding voice
+    CLEAR,        // Enhanced clarity, slightly higher pitch
+    WARM,         // Warm, deeper voice
+    ROBOT,        // Robotic, monotone
+    CHILD,        // Higher pitched, faster
+    DEEP          // Deep male voice
 };
 
-// Preset voice profiles
-enum class SAMVoicePreset {
-    NATURAL,    // Balanced, natural-sounding
-    CLEAR,      // Clear articulation
-    WARM,       // Warm, slower, deeper
-    ROBOT,      // Classic robotic sound
-    CUSTOM      // User-defined
-};
+// ═══════════════════════════════════════════════════════════════════════════
+// Data Structures
+// ═══════════════════════════════════════════════════════════════════════════
 
-// ============================================================================
-// Phoneme System (Modern IPA-inspired, not C64)
-// ============================================================================
-
-enum class PhonemeType : uint8_t {
-    SILENCE,
-    VOWEL,
-    CONSONANT_STOP,      // p, b, t, d, k, g
-    CONSONANT_FRICATIVE, // f, v, s, z, sh, etc.
-    CONSONANT_NASAL,     // m, n, ng
-    CONSONANT_LIQUID,    // l, r
-    CONSONANT_GLIDE      // w, y
+struct FormantSet {
+    float f1_freq, f2_freq, f3_freq;    // Formant frequencies
+    float f1_amp, f2_amp, f3_amp;       // Formant amplitudes
+    float f1_bw, f2_bw, f3_bw;          // Formant bandwidths
+    
+    FormantSet() : f1_freq(0), f2_freq(0), f3_freq(0),
+                   f1_amp(0), f2_amp(0), f3_amp(0),
+                   f1_bw(0), f2_bw(0), f3_bw(0) {}
 };
 
 struct Phoneme {
-    PhonemeType type;
-    uint8_t index;           // Index into formant tables
-    uint16_t duration_ms;    // Duration in milliseconds
-    float stress;            // 0.0-1.0, affects amplitude and duration
-    bool wordBoundary;       // Marks word boundary for prosody
-    
-    Phoneme() : type(PhonemeType::SILENCE), index(0), 
-                duration_ms(100), stress(0.5f), wordBoundary(false) {}
+    char symbol[4];
+    uint8_t duration;
+    uint8_t pitch;
+    uint8_t amplitude;
+    bool voiced;
+    FormantSet formants;
 };
 
-// ============================================================================
-// Formant Structure (ESP32-optimized, using FPU)
-// ============================================================================
-
-struct FormantSet {
-    float f1, f2, f3;        // Formant frequencies (Hz)
-    float a1, a2, a3;        // Formant amplitudes (0.0-1.0)
-    float bw1, bw2, bw3;     // Formant bandwidths (Hz)
-    
-    FormantSet() : f1(500), f2(1500), f3(2500),
-                   a1(1.0f), a2(0.5f), a3(0.3f),
-                   bw1(100), bw2(120), bw3(150) {}
-    
-    // Interpolate between two formant sets
-    FormantSet interpolate(const FormantSet& target, float t) const;
+struct PhonemeSequence {
+    std::vector<Phoneme> phonemes;
+    uint32_t totalDuration;
 };
 
-// ============================================================================
-// Main SAM Engine Class
-// ============================================================================
+struct SAMVoiceParams {
+    uint8_t speed;      // 50-150 (default: 72)
+    uint8_t pitch;      // 0-255 (default: 64)
+    uint8_t throat;     // 0-255 (default: 128)
+    uint8_t mouth;      // 0-255 (default: 128)
+    uint8_t stress;     // 0-255 (default: 0)
+    
+    SAMVoiceParams() 
+        : speed(72), pitch(64), throat(128), mouth(128), stress(0) {}
+};
+
+struct SAMConfig {
+    bool enableDSP;
+    bool enableSmoothing;
+    bool enableInterpolation;
+    float smoothingAmount;
+    float interpolationAmount;
+    bool enableFormantBoost;
+    bool enableBassBoost;
+    
+    SAMConfig()
+        : enableDSP(true)
+        , enableSmoothing(true)
+        , enableInterpolation(true)
+        , smoothingAmount(0.3f)
+        , interpolationAmount(0.5f)
+        , enableFormantBoost(true)
+        , enableBassBoost(false) {}
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SAM Engine Class
+// ═══════════════════════════════════════════════════════════════════════════
 
 class SAMEngine {
 public:
     SAMEngine();
     ~SAMEngine();
     
-    // ========================================================================
-    // Initialization & Configuration
-    // ========================================================================
-    
-    bool begin(AudioEngine* audioEngine);
+    // Initialization
+    bool begin(AudioEngine* engine = nullptr);
     void end();
     
-    // Load configuration from JSON file
-    bool loadConfig(const char* jsonPath = "/sam_config.json");
-    bool saveConfig(const char* jsonPath = "/sam_config.json");
-    
-    // Voice parameter control
+    // Configuration
+    bool loadConfig(const char* jsonPath);
+    bool saveConfig(const char* jsonPath);
     void setVoiceParams(const SAMVoiceParams& params);
     SAMVoiceParams getVoiceParams() const { return m_voiceParams; }
+    void setConfig(const SAMConfig& config);
+    SAMConfig getConfig() const { return m_config; }
     
-    // Apply preset
+    // Presets
     void applyPreset(SAMVoicePreset preset);
     
-    // ========================================================================
-    // Speech Synthesis
-    // ========================================================================
+    // Synthesis (main API)
+    bool speak(const String& text, bool async = false);
+    size_t synthesize(const PhonemeSequence& sequence, std::vector<float>& output);
     
-    // Main synthesis functions
-    bool speak(const String& text, bool async = true);
-    bool speakPhonemes(const String& phonemeString, bool async = true);
-    
-    // Queue management
-    void stop();
-    bool isSpeaking() const { return m_isSpeaking; }
-    void clearQueue();
-    
-    // Callbacks
-    typedef std::function<void()> SpeechCallback;
-    void onSpeechStart(SpeechCallback callback) { m_onSpeechStart = callback; }
-    void onSpeechComplete(SpeechCallback callback) { m_onSpeechComplete = callback; }
-    void onPhonemeChange(std::function<void(const Phoneme&)> callback) { 
-        m_onPhonemeChange = callback; 
-    }
-    
-    // ========================================================================
-    // Real-time Parameter Modulation
-    // ========================================================================
-    
-    void setPitchModulation(std::function<float(float)> modulator);
-    void setSpeedModulation(std::function<float(float)> modulator);
-    
-    // ========================================================================
-    // Audio Buffer Generation (for external use)
-    // ========================================================================
-    
-    // Generate audio buffer from text
-    size_t generateBuffer(const String& text, int16_t* buffer, 
-                          size_t maxSamples, uint32_t sampleRate = 22050);
-    
-    // Generate and return as float array
-    float* generateFloatBuffer(const String& text, size_t* outLength, 
-                               uint32_t sampleRate = 22050);
-    
-    // ========================================================================
-    // Debug & Diagnostics
-    // ========================================================================
-    
-    void setDebugMode(bool enable) { m_debugMode = enable; }
-    void printPhonemeSequence(const String& text);
-    void printFormantData(const Phoneme& phoneme);
-    
-    // Statistics
-    struct Stats {
-        uint32_t totalSynthesized;
-        uint32_t totalDuration_ms;
-        float avgCPULoad;
-        uint32_t bufferUnderruns;
-    };
-    Stats getStats() const { return m_stats; }
-    void resetStats();
-
-private:
-    // ========================================================================
-    // Internal Core Functions
-    // ========================================================================
-    
-    // Text processing pipeline
+    // Text processing
     PhonemeSequence textToPhonemes(const String& text);
-    void convertWordToPhonemes(const String& word, PhonemeSequence& sequence);
     void applyProsody(PhonemeSequence& sequence);
-    void applySentenceIntonation(PhonemeSequence& sequence, size_t start, size_t end);
-    void calculateDurations(PhonemeSequence& sequence);
-    void calculateStress(PhonemeSequence& sequence);
     
-    // Synthesis pipeline
-    size_t synthesizePhonemes(const PhonemeSequence& sequence, 
-                             float* buffer, size_t maxSamples);
-    void generateFormantFrame(const Phoneme& phoneme, float t, 
-                             FormantSet& output);
-    void renderFrame(const FormantSet& formants, float* output, 
-                    size_t frameSize);
+    // Status
+    bool isSpeaking() const { return m_isSpeaking; }
+    float getProgress() const { return m_progress; }
     
-    // DSP processing
-    void applySmoothing(float* buffer, size_t length);
-    void applyInterpolation(float* buffer, size_t length);
-    void applyFormantBoost(float* buffer, size_t length);
-    void applyBassBoost(float* buffer, size_t length);
-    
-    // Multi-core synthesis task
-    static void synthTaskFunc(void* parameter);
-    void synthTask();
-    
-    // Formant synthesis (FPU-optimized)
-    float generateFormantSample(float frequency, float amplitude, 
-                               float bandwidth, float phase);
-    void updateOscillatorPhases(float deltaTime);
-    
-    // ========================================================================
-    // Member Variables
-    // ========================================================================
-    
+private:
+    // Audio engine (optional)
     AudioEngine* m_audioEngine;
-    SAMVoiceParams m_voiceParams;
-    SAMVoicePreset m_currentPreset;
     
-    // Synthesis state
-    volatile bool m_isSpeaking;
-    bool m_debugMode;
-    
-    // Multi-core task
-    TaskHandle_t m_synthTask;
-    QueueHandle_t m_textQueue;
-    SemaphoreHandle_t m_mutex;
-    
-    // Audio buffer (PSRAM if available)
-    float* m_audioBuffer;
-    size_t m_audioBufferSize;
-    static constexpr size_t DEFAULT_BUFFER_SIZE = 8192;
-    
-    // Oscillator state (for formant generation)
-    struct OscillatorState {
-        float phase1, phase2, phase3;
-        float lastFreq1, lastFreq2, lastFreq3;
-    } m_oscState;
-    
-    // DSP processor
-    SAMDSPProcessor* m_dspProcessor;
-    
-    // Callbacks
-    SpeechCallback m_onSpeechStart;
-    SpeechCallback m_onSpeechComplete;
-    std::function<void(const Phoneme&)> m_onPhonemeChange;
-    
-    // Modulation functions
-    std::function<float(float)> m_pitchModulator;
-    std::function<float(float)> m_speedModulator;
-    
-    // Statistics
-    Stats m_stats;
+    // DSP Processor
+    SAMDSPProcessor* m_dsp;
     
     // Configuration
-    static constexpr uint32_t SAM_SAMPLE_RATE = 22050;
-    static constexpr size_t MAX_TEXT_QUEUE_SIZE = 10;
-};
-
-// ============================================================================
-// Helper Structures
-// ============================================================================
-
-struct PhonemeSequence {
-    std::vector<Phoneme> phonemes;
-    float totalDuration_ms;
+    SAMVoiceParams m_voiceParams;
+    SAMConfig m_config;
     
-    PhonemeSequence() : totalDuration_ms(0) {}
+    // State
+    bool m_initialized;
+    bool m_isSpeaking;
+    float m_progress;
+    
+    // Synthesis functions
+    void generateFormants(const Phoneme& phoneme, float* buffer, size_t samples);
+    void generateTransition(const Phoneme& from, const Phoneme& to, 
+                          float* buffer, size_t samples);
+    void applyEnvelope(float* buffer, size_t samples, uint8_t amplitude);
+    
+    // Text processing helpers
+    void convertWordToPhonemes(const String& word, PhonemeSequence& sequence);
+    void applySentenceIntonation(PhonemeSequence& sequence, 
+                                size_t startIdx, size_t endIdx);
+    
+    // Formant synthesis
+    float generateFormantSample(float freq, float amp, float bw, float phase);
+    
+    // Constants
+    static constexpr uint32_t SAM_SAMPLE_RATE = 22050;
+    static constexpr size_t MAX_PHONEMES = 256;
+    static constexpr float PI = 3.14159265359f;
+    static constexpr float TWO_PI = 6.28318530718f;
 };
-
-// ============================================================================
-// Global Preset Definitions
-// ============================================================================
-
-namespace SAMPresets {
-    SAMVoiceParams getNatural();
-    SAMVoiceParams getClear();
-    SAMVoiceParams getWarm();
-    SAMVoiceParams getRobot();
-}
 
 #endif // SAM_ENGINE_H

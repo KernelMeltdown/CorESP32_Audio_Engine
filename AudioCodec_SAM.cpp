@@ -1,36 +1,42 @@
-// AudioCodec_SAM.cpp - SAM Speech Synthesis Implementation
-
+/*
+ ╔══════════════════════════════════════════════════════════════════════════════╗
+ ║  SAM SPEECH SYNTHESIS CODEC - Implementation                                ║
+ ╚══════════════════════════════════════════════════════════════════════════════╝
+*/
 #include "AudioCodec_SAM.h"
+#include "AudioFilesystem.h"
+#include <FS.h>
 
-// Static extensions array
-const char* AudioCodec_SAM::s_extensions[] = {"sam", "txt", "speech", nullptr};
+// Static extension list
+const char* AudioCodec_SAM::s_extensions[] = {".txt", nullptr};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Constructor / Destructor
+// ═══════════════════════════════════════════════════════════════════════════
 
 AudioCodec_SAM::AudioCodec_SAM(AudioFilesystem* fs)
     : m_filesystem(fs)
-    , m_readPosition(0)
+    , m_bufferPosition(0)
     , m_isOpen(false)
-    , m_isPlaying(false)
     , m_targetSampleRate(22050)
 {
-    initFormat();
-    
-    // SAMEngine initialisieren (ohne AudioEngine)
-    if (!m_samEngine.begin(nullptr)) {
-        Serial.println(F("[SAM] Failed to initialize engine"));
-    } else {
-        // Lade Konfiguration falls vorhanden
-        m_samEngine.loadConfig("/sam_config.json");
-        
-        // Setze Standard-Preset
-        m_samEngine.applyPreset(SAMVoicePreset::NATURAL);
-        
-        Serial.println(F("[SAM] Engine initialized"));
-    }
+    m_audioBuffer.reserve(8192);
 }
 
 AudioCodec_SAM::~AudioCodec_SAM() {
     close();
-    m_samEngine.end();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// AudioCodec Interface - Metadata
+// ═══════════════════════════════════════════════════════════════════════════
+
+const char* AudioCodec_SAM::getName() {
+    return "SAM Speech Synthesis";
+}
+
+const char* AudioCodec_SAM::getVersion() {
+    return "2.0 ESP32";
 }
 
 const char** AudioCodec_SAM::getExtensions() {
@@ -40,52 +46,46 @@ const char** AudioCodec_SAM::getExtensions() {
 CodecCapabilities AudioCodec_SAM::getCapabilities() {
     CodecCapabilities caps;
     caps.canDecode = true;
-    caps.canEncode = false;  // Wir "dekodieren" Text zu Audio
-    caps.canStream = true;
-    caps.canResample = false; // Könnte mit AudioResampler gemacht werden
-    caps.maxSampleRate = 22050;
-    caps.maxChannels = 1;
-    caps.maxBitDepth = 16;
-    caps.ramUsage = 50000;  // ~50KB für Buffer
-    caps.cpuUsage = 0.15f;  // ~15% CPU
+    caps.canEncode = true;
+    caps.canSeek = false;
+    caps.supportsStreaming = false;
+    caps.requiresFullLoad = true;
     return caps;
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// AudioCodec Interface - File Operations
+// ═══════════════════════════════════════════════════════════════════════════
 
 bool AudioCodec_SAM::probe(const char* filename) {
     if (!filename) return false;
     
-    String fn = String(filename);
+    String fn(filename);
     fn.toLowerCase();
     
-    // SAM kann alles "dekodieren" was wie Text aussieht
-    // Prüfe auf bekannte Extensions
-    if (fn.endsWith(".sam") || fn.endsWith(".txt") || fn.endsWith(".speech")) {
-        return true;
-    }
+    // SAM accepts text files or plain text input
+    if (fn.endsWith(".txt")) return true;
     
-    // Oder wenn es kein Punkt hat (direkter Text)
-    if (fn.indexOf('.') == -1) {
-        return true;
-    }
+    // If no extension, assume it's text to synthesize
+    if (fn.indexOf('.') == -1) return true;
     
     return false;
 }
 
-bool AudioCodec_SAM::open(const char* path) {
-    if (!path || strlen(path) == 0) {
-        Serial.println(F("[SAM] Error: Empty input"));
-        return false;
-    }
+bool AudioCodec_SAM::open(const char* filename) {
+    if (!filename) return false;
     
-    // Bei SAM ist "path" entweder:
-    // 1. Direkter Text (kein Dateipfad)
-    // 2. Pfad zu Textdatei
+    close();
     
-    String text(path);
+    String text(filename);
     
-    // Prüfe ob es ein Dateipfad ist
+    // If it's a file path with extension, try to load from filesystem
     if (text.indexOf('.') != -1 && m_filesystem) {
-        // Versuche Datei zu lesen
+        String path = text;
+        if (!path.startsWith("/")) {
+            path = "/" + path;
+        }
+        
         File file = m_filesystem->open(path);
         if (file) {
             text = "";
@@ -93,175 +93,148 @@ bool AudioCodec_SAM::open(const char* path) {
                 text += (char)file.read();
             }
             file.close();
-            Serial.printf("[SAM] Loaded text from file: %s\n", path);
+        } else {
+            Serial.printf("[SAM] Warning: Could not open file '%s', using as text\n", path.c_str());
         }
     }
     
-    return synthesizeText(text);
+    // Store text and mark as open
+    m_currentText = text;
+    m_isOpen = true;
+    m_bufferPosition = 0;
+    
+    // Generate audio
+    generateAudio();
+    
+    return m_audioBuffer.size() > 0;
 }
 
 void AudioCodec_SAM::close() {
-    clearBuffer();
     m_isOpen = false;
-    m_isPlaying = false;
-    m_readPosition = 0;
+    m_currentText = "";
+    m_audioBuffer.clear();
+    m_bufferPosition = 0;
 }
 
-size_t AudioCodec_SAM::read(int16_t* buffer, size_t samples) {
-    if (!m_isOpen || !buffer || samples == 0) {
-        return 0;
+bool AudioCodec_SAM::isOpen() {
+    return m_isOpen;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// AudioCodec Interface - Format & Reading
+// ═══════════════════════════════════════════════════════════════════════════
+
+AudioFormat AudioCodec_SAM::getFormat() {
+    AudioFormat fmt;
+    fmt.sampleRate = m_targetSampleRate;
+    fmt.bitsPerSample = 16;
+    fmt.channels = 1;
+    fmt.bitrate = m_targetSampleRate * 16;
+    fmt.duration = m_audioBuffer.size() / m_targetSampleRate;
+    return fmt;
+}
+
+size_t AudioCodec_SAM::read(void* buffer, size_t size) {
+    if (!m_isOpen || !buffer) return 0;
+    
+    size_t bytesAvailable = (m_audioBuffer.size() - m_bufferPosition) * sizeof(int16_t);
+    size_t bytesToRead = (size < bytesAvailable) ? size : bytesAvailable;
+    
+    if (bytesToRead > 0) {
+        memcpy(buffer, 
+               &m_audioBuffer[m_bufferPosition], 
+               bytesToRead);
+        m_bufferPosition += bytesToRead / sizeof(int16_t);
     }
     
-    // Berechne wie viele Samples noch verfügbar sind
-    size_t available = m_audioBuffer.size() - m_readPosition;
-    if (available == 0) {
-        m_isPlaying = false;
-        return 0;
-    }
-    
-    // Kopiere Samples
-    size_t toRead = (samples < available) ? samples : available;
-    memcpy(buffer, &m_audioBuffer[m_readPosition], toRead * sizeof(int16_t));
-    m_readPosition += toRead;
-    
-    m_isPlaying = (m_readPosition < m_audioBuffer.size());
-    
-    return toRead;
+    return bytesToRead;
 }
 
 bool AudioCodec_SAM::seek(uint32_t position) {
-    if (!m_isOpen) {
-        return false;
-    }
-    
-    // Position in Samples
-    if (position >= m_audioBuffer.size()) {
-        m_readPosition = m_audioBuffer.size();
-        m_isPlaying = false;
-        return false;
-    }
-    
-    m_readPosition = position;
-    m_isPlaying = true;
-    return true;
+    // SAM doesn't support seeking in generated audio
+    return false;
 }
 
-AudioFormat AudioCodec_SAM::getFormat() {
-    return m_format;
+// ═══════════════════════════════════════════════════════════════════════════
+// AudioCodec Interface - Sample Rate
+// ═══════════════════════════════════════════════════════════════════════════
+
+void AudioCodec_SAM::setTargetSampleRate(uint32_t rate) {
+    m_targetSampleRate = rate;
 }
 
-// ============================================================================
-// SAM-spezifische Funktionen
-// ============================================================================
+uint32_t AudioCodec_SAM::getTargetSampleRate() {
+    return m_targetSampleRate;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SAM-Specific Functions
+// ═══════════════════════════════════════════════════════════════════════════
 
 bool AudioCodec_SAM::synthesizeText(const String& text) {
-    if (text.isEmpty()) {
-        Serial.println(F("[SAM] Error: Empty text"));
-        return false;
+    m_currentText = text;
+    m_bufferPosition = 0;
+    generateAudio();
+    return m_audioBuffer.size() > 0;
+}
+
+bool AudioCodec_SAM::applyPreset(SAMVoicePreset preset) {
+    m_samEngine.applyPreset(preset);
+    // Regenerate if we have text
+    if (!m_currentText.isEmpty()) {
+        generateAudio();
     }
-    
-    Serial.printf("[SAM] Synthesizing: %s\n", text.c_str());
-    
-    // Generiere Audio in Buffer
-    size_t requiredSamples = m_samEngine.generateBuffer(
-        text, nullptr, 0, m_format.sampleRate
-    );
-    
-    if (requiredSamples == 0) {
-        Serial.println(F("[SAM] Error: Synthesis failed"));
-        return false;
-    }
-    
-    // Allokiere Buffer
-    if (!allocateBuffer(requiredSamples)) {
-        Serial.println(F("[SAM] Error: Buffer allocation failed"));
-        return false;
-    }
-    
-    // Generiere tatsächliches Audio
-    size_t actualSamples = m_samEngine.generateBuffer(
-        text, 
-        m_audioBuffer.data(), 
-        requiredSamples, 
-        m_format.sampleRate
-    );
-    
-    if (actualSamples == 0) {
-        Serial.println(F("[SAM] Error: Audio generation failed"));
-        clearBuffer();
-        return false;
-    }
-    
-    // Passe Buffer-Größe an falls nötig
-    if (actualSamples < requiredSamples) {
-        m_audioBuffer.resize(actualSamples);
-    }
-    
-    m_readPosition = 0;
-    m_isOpen = true;
-    m_isPlaying = true;
-    
-    Serial.printf("[SAM] Generated %u samples (%.2f sec)\n", 
-                 actualSamples, (float)actualSamples / m_format.sampleRate);
-    
     return true;
 }
 
-void AudioCodec_SAM::setVoicePreset(SAMVoicePreset preset) {
-    m_samEngine.applyPreset(preset);
-}
-
-void AudioCodec_SAM::setVoiceParams(const SAMVoiceParams& params) {
+bool AudioCodec_SAM::setVoiceParams(const SAMVoiceParams& params) {
     m_samEngine.setVoiceParams(params);
-}
-
-SAMVoiceParams AudioCodec_SAM::getVoiceParams() const {
-    return m_samEngine.getVoiceParams();
-}
-
-void AudioCodec_SAM::enableDebug(bool enable) {
-    m_samEngine.setDebugMode(enable);
-}
-
-uint32_t AudioCodec_SAM::getDuration() const {
-    if (!m_isOpen || m_audioBuffer.empty()) {
-        return 0;
+    // Regenerate if we have text
+    if (!m_currentText.isEmpty()) {
+        generateAudio();
     }
-    
-    // Duration in Millisekunden
-    return (m_audioBuffer.size() * 1000) / m_format.sampleRate;
+    return true;
 }
 
-uint32_t AudioCodec_SAM::getPosition() const {
-    if (!m_isOpen) {
-        return 0;
-    }
-    
-    // Position in Millisekunden
-    return (m_readPosition * 1000) / m_format.sampleRate;
+void AudioCodec_SAM::getVoiceParams(SAMVoiceParams& params) const {
+    params = m_samEngine.getVoiceParams();
 }
 
-// ============================================================================
-// Helper Functions
-// ============================================================================
+// ═══════════════════════════════════════════════════════════════════════════
+// Private: Audio Generation
+// ═══════════════════════════════════════════════════════════════════════════
 
-void AudioCodec_SAM::clearBuffer() {
+void AudioCodec_SAM::generateAudio() {
     m_audioBuffer.clear();
-    m_audioBuffer.shrink_to_fit();
-}
-
-bool AudioCodec_SAM::allocateBuffer(size_t samples) {
-    try {
-        clearBuffer();
-        m_audioBuffer.resize(samples);
-        return true;
-    } catch (...) {
-        return false;
+    m_bufferPosition = 0;
+    
+    if (m_currentText.isEmpty()) return;
+    
+    Serial.printf("[SAM] Synthesizing: '%s'\n", m_currentText.c_str());
+    
+    // Convert text to phonemes
+    PhonemeSequence sequence = m_samEngine.textToPhonemes(m_currentText);
+    
+    // Apply prosody
+    m_samEngine.applyProsody(sequence);
+    
+    // Synthesize
+    std::vector<float> floatBuffer;
+    size_t samples = m_samEngine.synthesize(sequence, floatBuffer);
+    
+    if (samples == 0) {
+        Serial.println("[SAM] Error: No audio generated");
+        return;
     }
-}
-
-void AudioCodec_SAM::initFormat() {
-    m_format.sampleRate = 22050;
-    m_format.channels = 1;
-    m_format.bitDepth = 16;
+    
+    // Convert to int16_t
+    m_audioBuffer.resize(samples);
+    for (size_t i = 0; i < samples; i++) {
+        float sample = floatBuffer[i];
+        sample = std::max(-1.0f, std::min(1.0f, sample));
+        m_audioBuffer[i] = static_cast<int16_t>(sample * 32767.0f);
+    }
+    
+    Serial.printf("[SAM] Generated %u samples (%.2f seconds)\n", 
+                  samples, (float)samples / m_targetSampleRate);
 }

@@ -1,269 +1,247 @@
-// ESP32_UniversalAudio.ino - Beispiel mit SAM Integration
+/*
+ ╔══════════════════════════════════════════════════════════════════════════════╗
+ ║  ESP32 UNIVERSAL AUDIO ENGINE                                               ║
+ ║  Main Application with SAM Speech Synthesis                                 ║
+ ╚══════════════════════════════════════════════════════════════════════════════╝
+*/
 
 #include "AudioEngine.h"
 #include "AudioCodecManager.h"
 #include "AudioCodec_SAM.h"
+#include "AudioFilesystem.h"
+#include "AudioConsole.h"
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Global Instances
+// ═══════════════════════════════════════════════════════════════════════════
 
 AudioEngine audioEngine;
 AudioCodecManager codecManager;
+AudioFilesystem filesystem;
+AudioConsole console;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Setup
+// ═══════════════════════════════════════════════════════════════════════════
 
 void setup() {
     Serial.begin(115200);
     delay(1000);
     
-    Serial.println("=== CorESP32 Audio Engine mit SAM ===");
+    Serial.println("\n╔═══════════════════════════════════════════════════════╗");
+    Serial.println("║  ESP32 UNIVERSAL AUDIO ENGINE - SAM Integration     ║");
+    Serial.println("╚═══════════════════════════════════════════════════════╝\n");
     
-    // Audio Engine initialisieren
-    if (!audioEngine.begin()) {
-        Serial.println("ERROR: AudioEngine init failed!");
-        return;
+    // Initialize filesystem
+    Serial.println("[Setup] Initializing filesystem...");
+    if (!filesystem.begin()) {
+        Serial.println("[Setup] ERROR: Filesystem init failed");
     }
     
-    // Codec Manager initialisieren und SAM registrieren
-    codecManager.begin();
-    codecManager.registerCodec("sam", new AudioCodec_SAM());
+    // Initialize audio engine
+    Serial.println("[Setup] Initializing audio engine...");
+    audioEngine.init();
     
-    Serial.println("Audio System Ready!");
-    Serial.println();
+    // Initialize codec manager
+    Serial.println("[Setup] Initializing codec manager...");
+    codecManager.init(&filesystem);
     
-    // ========================================================================
-    // METHODE 1: Direkt über SAM Codec
-    // ========================================================================
-    testSAMDirect();
+    // List available codecs
+    codecManager.listCodecs();
     
-    // ========================================================================
-    // METHODE 2: Über Codec Manager (wie andere Formate)
-    // ========================================================================
-    // testSAMViaManager();
+    // Initialize console
+    console.begin(&audioEngine, &codecManager, &filesystem);
     
-    // ========================================================================
-    // METHODE 3: Mit verschiedenen Voice Presets
-    // ========================================================================
-    // testSAMVoices();
+    Serial.println("\n[Setup] System ready!");
+    Serial.println("Commands:");
+    Serial.println("  speak <text>          - Speak text");
+    Serial.println("  voice <preset>        - Change voice (natural/clear/warm/robot/child/deep)");
+    Serial.println("  test                  - Run SAM tests");
+    Serial.println("");
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Loop
+// ═══════════════════════════════════════════════════════════════════════════
 
 void loop() {
-    // Dein normaler Code
-    delay(100);
+    console.update();
+    delay(10);
 }
 
-// ============================================================================
-// METHODE 1: Direkte SAM-Nutzung
-// ============================================================================
-void testSAMDirect() {
-    Serial.println("--- Test: Direct SAM Usage ---");
+// ═══════════════════════════════════════════════════════════════════════════
+// SAM Test Functions
+// ═══════════════════════════════════════════════════════════════════════════
+
+void testSAMBasic() {
+    Serial.println("\n═══ TEST 1: Basic SAM Synthesis ═══");
     
-    // SAM Codec erstellen
-    AudioCodec_SAM sam;
-    
-    // Initialisieren
-    if (!sam.begin()) {
-        Serial.println("SAM init failed!");
+    AudioCodec_SAM* sam = codecManager.getSAMCodec();
+    if (!sam) {
+        Serial.println("ERROR: SAM codec not available");
         return;
     }
     
-    // Voice Preset setzen
-    sam.setVoicePreset(SAMVoicePreset::NATURAL);
+    sam->applyPreset(SAMVoicePreset::NATURAL);
+    sam->open("Hello ESP32. This is SAM speaking.");
     
-    // Text synthetisieren
-    String text = "Hello! This is SAM speech synthesizer running on ESP32.";
-    
-    if (!sam.synthesizeText(text)) {
-        Serial.println("Synthesis failed!");
-        return;
-    }
-    
-    Serial.printf("Duration: %u ms\n", sam.getDuration());
-    Serial.printf("Samples: %u\n", (sam.getDuration() * sam.getSampleRate()) / 1000);
-    
-    // Audio lesen und abspielen
-    const size_t BUFFER_SIZE = 1024;
-    int16_t buffer[BUFFER_SIZE];
-    size_t totalRead = 0;
-    
-    while (sam.isPlaying()) {
-        size_t read = sam.read(buffer, BUFFER_SIZE);
-        if (read == 0) break;
+    if (sam->isOpen()) {
+        AudioFormat fmt = sam->getFormat();
+        Serial.printf("Format: %u Hz, %u-bit, %u ch\n", 
+                      fmt.sampleRate, fmt.bitsPerSample, fmt.channels);
+        Serial.printf("Duration: %u ms\n", fmt.duration);
         
-        // HIER: An deine AudioEngine senden
-        // audioEngine.write(buffer, read);
-        // oder
-        // audioEngine.mixerAddSamples(buffer, read);
+        // Read and play audio
+        int16_t buffer[512];
+        size_t totalRead = 0;
+        while (true) {
+            size_t read = sam->read(buffer, sizeof(buffer));
+            if (read == 0) break;
+            totalRead += read;
+            // TODO: Send to audio output here
+        }
         
-        totalRead += read;
+        Serial.printf("Total bytes read: %u\n", totalRead);
+        sam->close();
+    } else {
+        Serial.println("ERROR: Failed to synthesize");
     }
-    
-    Serial.printf("Played %u samples\n", totalRead);
-    Serial.println();
 }
 
-// ============================================================================
-// METHODE 2: Via Codec Manager (wie MP3/WAV)
-// ============================================================================
-void testSAMViaManager() {
-    Serial.println("--- Test: SAM via CodecManager ---");
-    
-    // Text als "Datei" behandeln
-    String text = "Testing codec manager integration.";
-    
-    // Codec für "sam" Extension holen
-    AudioCodec* codec = codecManager.getCodec("sam");
-    if (!codec) {
-        Serial.println("SAM codec not found!");
-        return;
-    }
-    
-    // "Öffnen" (Text übergeben)
-    if (!codec->open(text.c_str())) {
-        Serial.println("Failed to open text!");
-        return;
-    }
-    
-    // Wie normale Audio-Datei abspielen
-    const size_t BUFFER_SIZE = 1024;
-    int16_t buffer[BUFFER_SIZE];
-    
-    while (codec->isPlaying()) {
-        size_t read = codec->read(buffer, BUFFER_SIZE);
-        if (read == 0) break;
-        
-        // An AudioEngine senden
-        // audioEngine.write(buffer, read);
-    }
-    
-    codec->close();
-    Serial.println();
-}
-
-// ============================================================================
-// METHODE 3: Verschiedene Voice Presets testen
-// ============================================================================
 void testSAMVoices() {
-    Serial.println("--- Test: Different Voice Presets ---");
+    Serial.println("\n═══ TEST 2: Voice Presets ═══");
     
-    AudioCodec_SAM sam;
-    sam.begin();
+    AudioCodec_SAM* sam = codecManager.getSAMCodec();
+    if (!sam) return;
     
-    const char* presets[] = {"Natural", "Clear", "Warm", "Robot"};
-    SAMVoicePreset presetValues[] = {
-        SAMVoicePreset::NATURAL,
-        SAMVoicePreset::CLEAR,
-        SAMVoicePreset::WARM,
-        SAMVoicePreset::ROBOT
+    const char* text = "Testing voice preset.";
+    
+    struct {
+        SAMVoicePreset preset;
+        const char* name;
+    } presets[] = {
+        {SAMVoicePreset::NATURAL, "Natural"},
+        {SAMVoicePreset::CLEAR, "Clear"},
+        {SAMVoicePreset::WARM, "Warm"},
+        {SAMVoicePreset::ROBOT, "Robot"},
+        {SAMVoicePreset::CHILD, "Child"},
+        {SAMVoicePreset::DEEP, "Deep"}
     };
     
-    for (int i = 0; i < 4; i++) {
-        Serial.printf("Testing preset: %s\n", presets[i]);
-        
-        sam.setVoicePreset(presetValues[i]);
-        sam.synthesizeText("This is a voice test.");
-        
-        // Abspielen...
-        const size_t BUFFER_SIZE = 1024;
-        int16_t buffer[BUFFER_SIZE];
-        
-        while (sam.isPlaying()) {
-            size_t read = sam.read(buffer, BUFFER_SIZE);
-            if (read == 0) break;
-            // audioEngine.write(buffer, read);
-        }
-        
-        delay(500); // Pause zwischen Tests
+    for (int i = 0; i < 6; i++) {
+        Serial.printf("\nTesting %s voice...\n", presets[i].name);
+        sam->applyPreset(presets[i].preset);
+        sam->synthesizeText(text);
+        delay(100);
     }
-    
-    Serial.println();
 }
 
-// ============================================================================
-// METHODE 4: Custom Voice Parameters
-// ============================================================================
-void testCustomVoice() {
-    Serial.println("--- Test: Custom Voice Parameters ---");
+void testSAMCustomParams() {
+    Serial.println("\n═══ TEST 3: Custom Voice Parameters ═══");
     
-    AudioCodec_SAM sam;
-    sam.begin();
+    AudioCodec_SAM* sam = codecManager.getSAMCodec();
+    if (!sam) return;
     
-    // Eigene Parameter setzen
     SAMVoiceParams params;
-    params.speed = 80;          // Schneller
-    params.pitch = 75;          // Höher
-    params.throat = 120;        // Enger
-    params.mouth = 130;         // Offener
-    params.smoothing = 50;      // Mehr Glättung
-    params.interpolation = 60;  // Mehr Interpolation
-    params.formantBoost = 25;   // Mehr Formant-Boost
-    params.bassBoost = 3;       // +3 dB Bass
+    params.speed = 80;
+    params.pitch = 75;
+    params.throat = 110;
+    params.mouth = 128;
+    params.stress = 0;
     
-    sam.setVoiceParams(params);
-    sam.synthesizeText("Custom voice test with modified parameters.");
+    sam->setVoiceParams(params);
+    sam->synthesizeText("Custom voice parameters test.");
     
-    // Abspielen...
-    Serial.println();
+    Serial.println("Custom parameters applied");
 }
 
-// ============================================================================
-// METHODE 5: Direkt in Buffer synthetisieren (für Effekte, etc.)
-// ============================================================================
-void testDirectBuffer() {
-    Serial.println("--- Test: Direct Buffer Synthesis ---");
+void testSAMViaManager() {
+    Serial.println("\n═══ TEST 4: Codec Manager Integration ═══");
     
-    AudioCodec_SAM sam;
-    sam.begin();
+    // Use high-level API
+    codecManager.speak("Testing codec manager.", SAMVoicePreset::NATURAL);
     
-    // Großer Buffer
-    const size_t MAX_SAMPLES = 50000;
-    int16_t* buffer = (int16_t*)malloc(MAX_SAMPLES * sizeof(int16_t));
-    
-    if (buffer) {
-        size_t actualSamples = 0;
-        
-        if (sam.synthesizeTextToBuffer(
-            "Direct buffer synthesis test.", 
-            buffer, 
-            MAX_SAMPLES, 
-            &actualSamples
-        )) {
-            Serial.printf("Generated %u samples\n", actualSamples);
-            
-            // Jetzt kannst du Effekte anwenden, etc.
-            // applyReverb(buffer, actualSamples);
-            // applyEcho(buffer, actualSamples);
-            
-            // Und dann abspielen
-            // audioEngine.write(buffer, actualSamples);
-        }
-        
-        free(buffer);
+    // Test codec detection
+    AudioCodec* codec = codecManager.detectCodec("Hello World");
+    if (codec) {
+        Serial.printf("Detected codec: %s\n", codec->getName());
+        codec->open("Hello World");
+        codec->close();
     }
-    
-    Serial.println();
 }
 
-// ============================================================================
-// METHODE 6: Console-Commands für SAM
-// ============================================================================
-void handleConsoleCommand(const String& cmd) {
-    if (cmd.startsWith("speak ")) {
-        String text = cmd.substring(6);
+void testSAMTextFile() {
+    Serial.println("\n═══ TEST 5: Text File Input ═══");
+    
+    AudioCodec_SAM* sam = codecManager.getSAMCodec();
+    if (!sam) return;
+    
+    // Try to load from file (if it exists)
+    sam->open("/test_speech.txt");
+    
+    // If file doesn't exist, it will use the filename as text
+    Serial.println("Test complete");
+}
+
+void runAllSAMTests() {
+    Serial.println("\n╔═══════════════════════════════════════════════════════╗");
+    Serial.println("║          RUNNING SAM TEST SUITE                      ║");
+    Serial.println("╚═══════════════════════════════════════════════════════╝");
+    
+    testSAMBasic();
+    delay(500);
+    
+    testSAMVoices();
+    delay(500);
+    
+    testSAMCustomParams();
+    delay(500);
+    
+    testSAMViaManager();
+    delay(500);
+    
+    testSAMTextFile();
+    
+    Serial.println("\n╔═══════════════════════════════════════════════════════╗");
+    Serial.println("║          ALL TESTS COMPLETE                          ║");
+    Serial.println("╚═══════════════════════════════════════════════════════╝\n");
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Console Command Handler (called from AudioConsole)
+// ═══════════════════════════════════════════════════════════════════════════
+
+void handleSAMCommand(const String& cmd, const String& args) {
+    if (cmd == "speak" && !args.isEmpty()) {
+        Serial.printf("Speaking: '%s'\n", args.c_str());
+        codecManager.speak(args, SAMVoicePreset::NATURAL);
+    }
+    else if (cmd == "voice" && !args.isEmpty()) {
+        SAMVoicePreset preset = SAMVoicePreset::NATURAL;
+        String v = args;
+        v.toLowerCase();
         
-        AudioCodec_SAM sam;
-        sam.begin();
-        sam.synthesizeText(text);
+        if (v == "natural") preset = SAMVoicePreset::NATURAL;
+        else if (v == "clear") preset = SAMVoicePreset::CLEAR;
+        else if (v == "warm") preset = SAMVoicePreset::WARM;
+        else if (v == "robot") preset = SAMVoicePreset::ROBOT;
+        else if (v == "child") preset = SAMVoicePreset::CHILD;
+        else if (v == "deep") preset = SAMVoicePreset::DEEP;
+        else {
+            Serial.println("Unknown voice preset");
+            return;
+        }
         
-        // Abspielen...
-        const size_t BUFFER_SIZE = 1024;
-        int16_t buffer[BUFFER_SIZE];
-        
-        while (sam.isPlaying()) {
-            size_t read = sam.read(buffer, BUFFER_SIZE);
-            if (read == 0) break;
-            // audioEngine.write(buffer, read);
+        AudioCodec_SAM* sam = codecManager.getSAMCodec();
+        if (sam) {
+            sam->applyPreset(preset);
+            Serial.printf("Voice set to: %s\n", args.c_str());
         }
     }
-    else if (cmd.startsWith("voice ")) {
-        String preset = cmd.substring(6);
-        
-        // Preset wechseln...
-        Serial.printf("Voice preset changed to: %s\n", preset.c_str());
+    else if (cmd == "test") {
+        runAllSAMTests();
+    }
+    else {
+        Serial.println("Unknown SAM command");
     }
 }

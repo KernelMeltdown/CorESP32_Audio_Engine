@@ -1,121 +1,130 @@
-// SAMPhonemes.h - Modern Phoneme Definitions for ESP32
-// Based on IPA (International Phonetic Alphabet)
-// No C64 legacy - Scientifically accurate formant values
-
+/*
+ ╔══════════════════════════════════════════════════════════════════════════════╗
+ ║  SAM PHONEME DEFINITIONS - Header                                            ║
+ ║  Modern phoneme data based on IPA and acoustic research                    ║
+ ╚══════════════════════════════════════════════════════════════════════════════╝
+*/
 #ifndef SAM_PHONEMES_H
 #define SAM_PHONEMES_H
 
 #include <Arduino.h>
 #include "SAMEngine.h"
 
-// ============================================================================
-// Phoneme Index Definitions (Modern, not C64-based)
-// ============================================================================
+// ═══════════════════════════════════════════════════════════════════════════
+// Phoneme Type Classification
+// ═══════════════════════════════════════════════════════════════════════════
 
-namespace SAMPhonemeIndex {
-    // Silence
-    constexpr uint8_t SILENCE = 0;
-    constexpr uint8_t PAUSE_SHORT = 1;
-    constexpr uint8_t PAUSE_LONG = 2;
-    
-    // Vowels (based on acoustic measurements, not C64 values)
-    constexpr uint8_t IY = 10;  // "ee" as in "see"
-    constexpr uint8_t IH = 11;  // "i" as in "sit"
-    constexpr uint8_t EH = 12;  // "e" as in "bed"
-    constexpr uint8_t AE = 13;  // "a" as in "cat"
-    constexpr uint8_t AA = 14;  // "o" as in "hot"
-    constexpr uint8_t AO = 15;  // "aw" as in "law"
-    constexpr uint8_t UH = 16;  // "u" as in "put"
-    constexpr uint8_t UW = 17;  // "oo" as in "food"
-    constexpr uint8_t ER = 18;  // "er" as in "bird"
-    constexpr uint8_t AH = 19;  // "u" as in "but"
-    constexpr uint8_t AX = 20;  // "a" as in "about" (schwa)
-    
-    // Diphthongs
-    constexpr uint8_t EY = 25;  // "a" as in "day"
-    constexpr uint8_t AY = 26;  // "i" as in "my"
-    constexpr uint8_t OY = 27;  // "oy" as in "boy"
-    constexpr uint8_t AW = 28;  // "ow" as in "how"
-    constexpr uint8_t OW = 29;  // "o" as in "go"
-    
-    // Consonants - Stops
-    constexpr uint8_t P = 40;   // "p" as in "put"
-    constexpr uint8_t B = 41;   // "b" as in "but"
-    constexpr uint8_t T = 42;   // "t" as in "top"
-    constexpr uint8_t D = 43;   // "d" as in "dog"
-    constexpr uint8_t K = 44;   // "k" as in "cat"
-    constexpr uint8_t G = 45;   // "g" as in "got"
-    
-    // Consonants - Fricatives
-    constexpr uint8_t F = 50;   // "f" as in "fan"
-    constexpr uint8_t V = 51;   // "v" as in "van"
-    constexpr uint8_t TH = 52;  // "th" as in "thin"
-    constexpr uint8_t DH = 53;  // "th" as in "then"
-    constexpr uint8_t S = 54;   // "s" as in "sit"
-    constexpr uint8_t Z = 55;   // "z" as in "zoo"
-    constexpr uint8_t SH = 56;  // "sh" as in "shop"
-    constexpr uint8_t ZH = 57;  // "zh" as in "measure"
-    constexpr uint8_t H = 58;   // "h" as in "hot"
-    
-    // Consonants - Affricates
-    constexpr uint8_t CH = 60;  // "ch" as in "church"
-    constexpr uint8_t JH = 61;  // "j" as in "judge"
-    
-    // Consonants - Nasals
-    constexpr uint8_t M = 70;   // "m" as in "man"
-    constexpr uint8_t N = 71;   // "n" as in "not"
-    constexpr uint8_t NG = 72;  // "ng" as in "sing"
-    
-    // Consonants - Liquids
-    constexpr uint8_t L = 80;   // "l" as in "let"
-    constexpr uint8_t R = 81;   // "r" as in "red"
-    
-    // Consonants - Glides
-    constexpr uint8_t W = 90;   // "w" as in "wet"
-    constexpr uint8_t Y = 91;   // "y" as in "yes"
-}
+enum class PhonemeType : uint8_t {
+    SILENCE = 0,
+    VOWEL,
+    DIPHTHONG,
+    STOP,
+    FRICATIVE,
+    AFFRICATE,
+    NASAL,
+    LIQUID,
+    GLIDE
+};
 
-// ============================================================================
-// Formant Data Tables (ESP32-optimized, scientifically accurate)
-// ============================================================================
+// ═══════════════════════════════════════════════════════════════════════════
+// Phoneme Data Structure
+// ═══════════════════════════════════════════════════════════════════════════
 
 struct PhonemeFormantData {
     const char* symbol;
+    const char* example;
     PhonemeType type;
     FormantSet formants;
-    uint16_t baseDuration_ms;
-    float noiseLevel;        // 0.0-1.0 for fricatives
-    float voicing;           // 0.0-1.0 (0=unvoiced, 1=fully voiced)
+    uint8_t defaultDuration;
+    bool voiced;
 };
 
-// Modern formant values based on acoustic research (not C64 approximations)
-namespace SAMFormantTables {
-    
-    // Master Phoneme Lookup Table - declared in .cpp file
-    extern const PhonemeFormantData PHONEME_TABLE[128];
-    
-} // namespace SAMFormantTables
+// ═══════════════════════════════════════════════════════════════════════════
+// Formant Tables (Modern, Research-Based)
+// ═══════════════════════════════════════════════════════════════════════════
 
-// ============================================================================
-// Text-to-Phoneme Rules (Modern English, not C64-based)
-// ============================================================================
+namespace SAMFormantTables {
+    // Helper function to create FormantSet
+    inline FormantSet makeFormantSet(float f1, float f2, float f3,
+                                     float a1, float a2, float a3,
+                                     float b1, float b2, float b3) {
+        FormantSet fs;
+        fs.f1_freq = f1; fs.f2_freq = f2; fs.f3_freq = f3;
+        fs.f1_amp = a1;  fs.f2_amp = a2;  fs.f3_amp = a3;
+        fs.f1_bw = b1;   fs.f2_bw = b2;   fs.f3_bw = b3;
+        return fs;
+    }
+
+    // VOWELS (based on Peterson & Barney 1952)
+    extern const PhonemeFormantData SILENCE_DATA;
+    extern const PhonemeFormantData IY_DATA;  // "ee" in "see"
+    extern const PhonemeFormantData IH_DATA;  // "i" in "sit"
+    extern const PhonemeFormantData EH_DATA;  // "e" in "bed"
+    extern const PhonemeFormantData AE_DATA;  // "a" in "cat"
+    extern const PhonemeFormantData AH_DATA;  // "u" in "but"
+    extern const PhonemeFormantData AX_DATA;  // schwa "a" in "about"
+    extern const PhonemeFormantData ER_DATA;  // "er" in "bird"
+    extern const PhonemeFormantData AA_DATA;  // "o" in "hot"
+    extern const PhonemeFormantData AO_DATA;  // "aw" in "law"
+    extern const PhonemeFormantData UH_DATA;  // "u" in "put"
+    extern const PhonemeFormantData UW_DATA;  // "oo" in "food"
+    
+    // DIPHTHONGS
+    extern const PhonemeFormantData EY_DATA;  // "a" in "day"
+    extern const PhonemeFormantData AY_DATA;  // "i" in "my"
+    extern const PhonemeFormantData OY_DATA;  // "oy" in "boy"
+    extern const PhonemeFormantData AW_DATA;  // "ow" in "how"
+    extern const PhonemeFormantData OW_DATA;  // "o" in "go"
+    
+    // STOPS (voiceless)
+    extern const PhonemeFormantData P_DATA;   // "p" in "put"
+    extern const PhonemeFormantData B_DATA;   // "b" in "but"
+    extern const PhonemeFormantData T_DATA;   // "t" in "top"
+    extern const PhonemeFormantData D_DATA;   // "d" in "dog"
+    extern const PhonemeFormantData K_DATA;   // "k" in "cat"
+    extern const PhonemeFormantData G_DATA;   // "g" in "got"
+    
+    // FRICATIVES
+    extern const PhonemeFormantData F_DATA;   // "f" in "fan"
+    extern const PhonemeFormantData V_DATA;   // "v" in "van"
+    extern const PhonemeFormantData TH_DATA;  // "th" in "thin"
+    extern const PhonemeFormantData DH_DATA;  // "th" in "then"
+    extern const PhonemeFormantData S_DATA;   // "s" in "sit"
+    extern const PhonemeFormantData Z_DATA;   // "z" in "zoo"
+    extern const PhonemeFormantData SH_DATA;  // "sh" in "shop"
+    extern const PhonemeFormantData ZH_DATA;  // "zh" in "measure"
+    extern const PhonemeFormantData H_DATA;   // "h" in "hot"
+    
+    // AFFRICATES
+    extern const PhonemeFormantData CH_DATA;  // "ch" in "church"
+    extern const PhonemeFormantData JH_DATA;  // "j" in "judge"
+    
+    // NASALS
+    extern const PhonemeFormantData M_DATA;   // "m" in "man"
+    extern const PhonemeFormantData N_DATA;   // "n" in "not"
+    extern const PhonemeFormantData NG_DATA;  // "ng" in "sing"
+    
+    // LIQUIDS
+    extern const PhonemeFormantData L_DATA;   // "l" in "let"
+    extern const PhonemeFormantData R_DATA;   // "r" in "red"
+    
+    // GLIDES
+    extern const PhonemeFormantData W_DATA;   // "w" in "wet"
+    extern const PhonemeFormantData Y_DATA;   // "y" in "yes"
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Text-to-Phoneme Rules
+// ═══════════════════════════════════════════════════════════════════════════
 
 namespace SAMTextRules {
-    
-    struct PhonemeRule {
-        const char* pattern;     // Text pattern to match
-        const char* context;     // Context (left/right conditions)
-        const char* phonemes;    // Output phoneme string
-        uint16_t priority;       // Higher = check first
-    };
-    
-    // Initialize rule system
+    // Initialize phoneme dictionary
     void initializeRules();
     
-    // Convert text to phonemes using rules
+    // Convert text to phonemes
     String textToPhonemes(const String& text);
     
-    // Dictionary lookup for special words
+    // Dictionary lookup
     bool lookupDictionary(const String& word, String& phonemes);
     
     // Add custom dictionary entry

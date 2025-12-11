@@ -4,17 +4,18 @@
  ║  Manages all audio codecs including WAV and SAM Speech Synthesis            ║
  ╚══════════════════════════════════════════════════════════════════════════════╝
 */
-
 #ifndef AUDIO_CODEC_MANAGER_H
 #define AUDIO_CODEC_MANAGER_H
 
 #include <Arduino.h>
 #include "AudioCodec.h"
 #include "AudioCodec_WAV.h"
-#include "AudioFilesystem.h"
 
-// Forward declaration (SAM wird erst in .cpp inkludiert für schnellere Compile-Zeit)
+// Forward declarations for SAM (prevents circular dependencies)
 class AudioCodec_SAM;
+class AudioFilesystem;
+enum class SAMVoicePreset : uint8_t;
+struct SAMVoiceParams;
 
 class AudioCodecManager {
 public:
@@ -35,7 +36,7 @@ public:
   
   // SAM-specific functions
   AudioCodec_SAM* getSAMCodec();
-  bool speak(const String& text, SAMVoicePreset preset = SAMVoicePreset::NATURAL);
+  bool speak(const String& text, SAMVoicePreset preset);
   bool speakWithParams(const String& text, const SAMVoiceParams& params);
   
 private:
