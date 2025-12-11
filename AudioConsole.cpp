@@ -1,7 +1,6 @@
 /*
  ╔══════════════════════════════════════════════════════════════════════════════╗
  ║  AUDIO CONSOLE - Implementation v1.9                                         ║
- ║  Complete Serial Console with LFO Modulation Support                         ║
  ╚══════════════════════════════════════════════════════════════════════════════╝
 */
 
@@ -33,7 +32,6 @@ void AudioConsole::init(AudioEngine* audioEngine, AudioProfile* profMgr,
   Serial.println();
   Serial.println(F("╔════════════════════════════════════════════════════════╗"));
   Serial.println(F("║            ESP32 AUDIO OS v1.9.0                       ║"));
-  Serial.println(F("║         Universal Audio Engine with LFO                ║"));
   Serial.println(F("╚════════════════════════════════════════════════════════╝"));
   Serial.println();
   Serial.println(F("Type 'audio help' for commands"));

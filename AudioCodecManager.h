@@ -33,6 +33,8 @@ public:
   
 private:
   AudioFilesystem* filesystem;
+  // Eigentlich sollten die codecs später im flieFS / spiffs liegen und beim booten automatisch erkannt werden oder so, bitte 
+  // nochmal die DOCS studieren, wir wollen alles maximal flexibel haben und so was wie hier nicht hardcodieren
   AudioCodec_WAV* wavCodec;
   
   // Future: More codecs
