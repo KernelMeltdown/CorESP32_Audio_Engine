@@ -2,31 +2,44 @@
   "name": "Tetris Theme",
   "tempo": 120,
   "notes": [
-    {"pitch": 76, "dur": 400, "vel": 127},  // E5
-    {"pitch": 71, "dur": 200, "vel": 127},  // B4  
-    {"pitch": 72, "dur": 200, "vel": 127},  // C5
-    {"pitch": 74, "dur": 400, "vel": 127},  // D5
-    {"pitch": 72, "dur": 200, "vel": 127},  // C5
-    {"pitch": 71, "dur": 200, "vel": 127},  // B4
-    {"pitch": 69, "dur": 400, "vel": 127},  // A4
-    {"pitch": 69, "dur": 200, "vel": 127},  // A4
-    {"pitch": 72, "dur": 200, "vel": 127},  // C5
-    {"pitch": 76, "dur": 400, "vel": 127},  // E5
-    {"pitch": 74, "dur": 200, "vel": 127},  // D5
-    {"pitch": 72, "dur": 200, "vel": 127},  // C5
-    {"pitch": 71, "dur": 600, "vel": 127},  // B4
-    {"pitch": 72, "dur": 200, "vel": 127},  // C5
-    {"pitch": 74, "dur": 400, "vel": 127},  // D5
-    {"pitch": 76, "dur": 400, "vel": 127},  // E5
-    {"pitch": 72, "dur": 400, "vel": 127},  // C5
-    {"pitch": 69, "dur": 400, "vel": 127},  // A4
-    {"pitch": 69, "dur": 400, "vel": 127},  // A4
-    {"pitch": 0,  "dur": 400, "vel": 0},    // REST
-    {"pitch": 74, "dur": 400, "vel": 127},  // D5
-    {"pitch": 77, "dur": 200, "vel": 127},  // F5
-    {"pitch": 81, "dur": 400, "vel": 127},  // A5
-    {"pitch": 79, "dur": 200, "vel": 127},  // G5
-    {"pitch": 77, "dur": 200, "vel": 127},  // F5
-    {"pitch": 76, "dur": 600, "vel": 127}   // E5
+    {"freq": 76, "duration": 400, "velocity": 127},
+    {"freq": 71, "duration": 200, "velocity": 127},
+    {"freq": 72, "duration": 200, "velocity": 127},
+    {"freq": 74, "duration": 400, "velocity": 127},
+    {"freq": 72, "duration": 200, "velocity": 127},
+    {"freq": 71, "duration": 200, "velocity": 127},
+    {"freq": 69, "duration": 400, "velocity": 127},
+    {"freq": 69, "duration": 200, "velocity": 127},
+    {"freq": 72, "duration": 200, "velocity": 127},
+    {"freq": 76, "duration": 400, "velocity": 127},
+    {"freq": 74, "duration": 200, "velocity": 127},
+    {"freq": 72, "duration": 200, "velocity": 127},
+    {"freq": 71, "duration": 600, "velocity": 127},
+    {"freq": 72, "duration": 200, "velocity": 127},
+    {"freq": 74, "duration": 400, "velocity": 127},
+    {"freq": 76, "duration": 400, "velocity": 127},
+    {"freq": 72, "duration": 400, "velocity": 127},
+    {"freq": 69, "duration": 400, "velocity": 127},
+    {"freq": 69, "duration": 400, "velocity": 127},
+    {"freq": 0, "duration": 400, "velocity": 0},
+    {"freq": 74, "duration": 400, "velocity": 127},
+    {"freq": 77, "duration": 200, "velocity": 127},
+    {"freq": 81, "duration": 400, "velocity": 127},
+    {"freq": 79, "duration": 200, "velocity": 127},
+    {"freq": 77, "duration": 200, "velocity": 127},
+    {"freq": 76, "duration": 600, "velocity": 127},
+    {"freq": 72, "duration": 200, "velocity": 127},
+    {"freq": 76, "duration": 400, "velocity": 127},
+    {"freq": 74, "duration": 200, "velocity": 127},
+    {"freq": 72, "duration": 200, "velocity": 127},
+    {"freq": 71, "duration": 400, "velocity": 127},
+    {"freq": 71, "duration": 200, "velocity": 127},
+    {"freq": 72, "duration": 200, "velocity": 127},
+    {"freq": 74, "duration": 400, "velocity": 127},
+    {"freq": 76, "duration": 400, "velocity": 127},
+    {"freq": 72, "duration": 400, "velocity": 127},
+    {"freq": 69, "duration": 400, "velocity": 127},
+    {"freq": 69, "duration": 400, "velocity": 127},
+    {"freq": 0, "duration": 400, "velocity": 0}
   ]
 }

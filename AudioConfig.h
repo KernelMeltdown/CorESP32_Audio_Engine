@@ -146,7 +146,7 @@
 // FILESYSTEM CONFIGURATION
 // ============================================================================
 #define FS_MOUNT_POINT          "/spiffs"
-#define FS_FORMAT_ON_FAIL       false
+#define FS_FORMAT_ON_FAIL       true
 
 #define PROFILE_PATH            "/profiles"
 #define CONFIG_PATH             "/config"

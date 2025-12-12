@@ -9,11 +9,8 @@
 #include "AudioProfile.h"
 #include "AudioFilesystem.h"
 #include "AudioCodecManager.h"
+#include <ArduinoJson.h>
 
-// Tetris Theme - Built-in melody
-const Note tetrisTheme[] = {
-  { NOTE_E5, 400, 127 }, { NOTE_B4, 200, 127 }, { NOTE_C5, 200, 127 }, { NOTE_D5, 400, 127 }, { NOTE_C5, 200, 127 }, { NOTE_B4, 200, 127 }, { NOTE_A4, 400, 127 }, { NOTE_A4, 200, 127 }, { NOTE_C5, 200, 127 }, { NOTE_E5, 400, 127 }, { NOTE_D5, 200, 127 }, { NOTE_C5, 200, 127 }, { NOTE_B4, 600, 127 }, { NOTE_C5, 200, 127 }, { NOTE_D5, 400, 127 }, { NOTE_E5, 400, 127 }, { NOTE_C5, 400, 127 }, { NOTE_A4, 400, 127 }, { NOTE_A4, 400, 127 }, { NOTE_REST, 400, 0 }, { NOTE_D5, 400, 127 }, { NOTE_F5, 200, 127 }, { NOTE_A5, 400, 127 }, { NOTE_G5, 200, 127 }, { NOTE_F5, 200, 127 }, { NOTE_E5, 600, 127 }, { NOTE_C5, 200, 127 }, { NOTE_E5, 400, 127 }, { NOTE_D5, 200, 127 }, { NOTE_C5, 200, 127 }, { NOTE_B4, 400, 127 }, { NOTE_B4, 200, 127 }, { NOTE_C5, 200, 127 }, { NOTE_D5, 400, 127 }, { NOTE_E5, 400, 127 }, { NOTE_C5, 400, 127 }, { NOTE_A4, 400, 127 }, { NOTE_A4, 400, 127 }, { NOTE_REST, 400, 0 }
-};
 
 AudioConsole::AudioConsole()
   : audio(nullptr), profileManager(nullptr), filesystem(nullptr), codecManager(nullptr) {
@@ -198,18 +195,21 @@ void AudioConsole::cmdPlay(String args) {
   args.trim();
 
   if (args.length() == 0) {
-    Serial.println(F("[AUDIO] Playing Tetris theme..."));
-    audio->playMelody(tetrisTheme, sizeof(tetrisTheme) / sizeof(Note));
+    Serial.println(F("ERROR: Usage: audio play <melody_name>"));
+    Serial.println(F("HINT: Try 'audio play tetris' or 'audio list /melodies'"));
     return;
   }
 
-  if (args.equalsIgnoreCase("tetris")) {
-    Serial.println(F("[AUDIO] Playing Tetris theme..."));
-    audio->playMelody(tetrisTheme, sizeof(tetrisTheme) / sizeof(Note));
-    return;
+  // Build melody path
+  String path = String(PATH_MELODIES) + "/" + args;
+  if (!path.endsWith(".json")) {
+    path += ".json";
   }
 
-  Serial.printf("[TODO] File playback: %s\n", args.c_str());
+  if (!loadAndPlayMelody(path.c_str())) {
+    Serial.printf("ERROR: Could not load melody: %s\n", path.c_str());
+    Serial.println(F("HINT: Use 'audio list /melodies' to see available melodies"));
+  }
 }
 
 void AudioConsole::cmdStop(String args) {
@@ -1467,6 +1467,75 @@ void AudioConsole::cmdHelp(String args) {
     }
     Serial.println();
   }
+}
+
+
+// ============================================================================
+// MELODY JSON LOADER
+// ============================================================================
+bool AudioConsole::loadAndPlayMelody(const char* path) {
+  if (!filesystem || !filesystem->isInitialized()) {
+    Serial.println(F("ERROR: Filesystem not mounted"));
+    return false;
+  }
+
+  // Open file with mode parameter (required by AudioFilesystem)
+  File file = filesystem->open(path, "r");
+  if (!file) {
+    Serial.printf("ERROR: Cannot open file: %s\n", path);
+    return false;
+  }
+
+  // Parse JSON
+  StaticJsonDocument<2048> doc;
+  DeserializationError error = deserializeJson(doc, file);
+  file.close();
+
+  if (error) {
+    Serial.printf("ERROR: JSON parse failed: %s\n", error.c_str());
+    return false;
+  }
+
+  // Validate melody structure
+  if (!doc.containsKey("notes")) {
+    Serial.println(F("ERROR: JSON missing 'notes' array"));
+    return false;
+  }
+
+  JsonArray notesArray = doc["notes"];
+  size_t noteCount = notesArray.size();
+
+  if (noteCount == 0) {
+    Serial.println(F("ERROR: Empty notes array"));
+    return false;
+  }
+
+  // Allocate temporary melody buffer
+  Note* melody = new Note[noteCount];
+  if (!melody) {
+    Serial.println(F("ERROR: Out of memory for melody"));
+    return false;
+  }
+
+  // Parse notes
+  for (size_t i = 0; i < noteCount; i++) {
+    JsonObject note = notesArray[i];
+    melody[i].pitch = note["freq"] | NOTE_REST;
+    melody[i].duration = note["duration"] | 500;
+    melody[i].velocity = note["velocity"] | 127;
+  }
+
+  // Show melody info
+  String name = doc["name"] | "Unknown";
+  Serial.printf("AUDIO: Playing '%s' (%d notes)\n", name.c_str(), noteCount);
+
+  // Play melody (MelodyPlayer will copy and own the data)
+  audio->playMelody(melody, noteCount);
+
+  // Clean up temporary buffer (MelodyPlayer has its own copy now)
+  delete[] melody;
+
+  return true;
 }
 
 // ============================================================================

@@ -196,17 +196,26 @@ struct Voice {
 // ============================================================================
 class MelodyPlayer {
 private:
-  const Note* melody;
+  Note* melody;           // Owned pointer (non-const)
   size_t melodyLen;
   size_t currentNote;
   uint32_t noteStartTime;
   bool playing;
+  bool ownsMemory;        // Memory ownership flag
   class AudioEngine* audio;
-  
+
 public:
-  MelodyPlayer() : melody(nullptr), melodyLen(0), currentNote(0), 
-                   noteStartTime(0), playing(false), audio(nullptr) {}
-  
+  MelodyPlayer()
+    : melody(nullptr), melodyLen(0), currentNote(0), 
+      noteStartTime(0), playing(false), ownsMemory(false), audio(nullptr) {}
+
+  ~MelodyPlayer() {
+    if (ownsMemory && melody) {
+      delete[] melody;
+      melody = nullptr;
+    }
+  }
+
   void setAudioEngine(class AudioEngine* engine) { audio = engine; }
   void play(const Note* m, size_t len);
   void stop();

@@ -158,23 +158,46 @@ int16_t Voice::getSample(float lfoVibrato, float lfoTremolo) {
 // ============================================================================
 
 void MelodyPlayer::play(const Note* m, size_t len) {
-  melody = m;
+  // Clean up old melody if we own it
+  if (ownsMemory && melody) {
+    delete[] melody;
+    melody = nullptr;
+  }
+
+  // Copy melody data (take ownership)
+  melody = new Note[len];
+  if (!melody) {
+    playing = false;
+    return;
+  }
+
+  memcpy(melody, m, len * sizeof(Note));
   melodyLen = len;
+  ownsMemory = true;
   currentNote = 0;
   playing = true;
   noteStartTime = millis();
-  
+
   if (audio && melody[0].pitch != NOTE_REST) {
     audio->noteOn(melody[0].pitch, melody[0].velocity);
   }
 }
+
 
 void MelodyPlayer::stop() {
   playing = false;
   if (audio) {
     audio->allNotesOff();
   }
+
+  // Clean up melody memory
+  if (ownsMemory && melody) {
+    delete[] melody;
+    melody = nullptr;
+    ownsMemory = false;
+  }
 }
+
 
 void MelodyPlayer::update() {
   if (!playing || !melody || !audio) return;
