@@ -237,22 +237,6 @@ struct DelayConfig {
   }
 };
 
-// ============================================================================
-// DISPLAY CONFIGURATION
-// ============================================================================
-struct DisplayConfig {
-  bool enabled;
-  uint8_t brightness;
-  
-  DisplayConfig() {
-    enabled = DISPLAY_ENABLED;
-    #if DISPLAY_ENABLED
-      brightness = DEFAULT_BRIGHTNESS;
-    #else
-      brightness = 0;
-    #endif
-  }
-};
 
 // ============================================================================
 // MAIN SETTINGS STRUCTURE
@@ -278,7 +262,6 @@ struct AudioSettings {
   DelayConfig delay;
   
   ResampleQuality resampleQuality;
-  DisplayConfig display;
   MultiCoreConfig multiCore;
   PerformanceConfig performance;
   

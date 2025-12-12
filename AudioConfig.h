@@ -143,27 +143,6 @@
 #define DEFAULT_RESAMPLE_QUALITY "best"
 
 // ============================================================================
-// DISPLAY CONFIGURATION
-// ============================================================================
-#define DISPLAY_ENABLED         1
-
-#if DISPLAY_ENABLED
-  #define PIN_SCLK              7
-  #define PIN_MOSI              6
-  #define PIN_TFT_CS            14
-  #define PIN_TFT_DC            15
-  #define PIN_TFT_RST           21
-  #define PIN_BL                22
-  #define LCD_WIDTH             172
-  #define LCD_HEIGHT            320
-  #define DEFAULT_BRIGHTNESS    180
-  
-  #define TFT_CS                PIN_TFT_CS
-  #define TFT_DC                PIN_TFT_DC
-  #define TFT_RST               PIN_TFT_RST
-#endif
-
-// ============================================================================
 // FILESYSTEM CONFIGURATION
 // ============================================================================
 #define FS_MOUNT_POINT          "/spiffs"

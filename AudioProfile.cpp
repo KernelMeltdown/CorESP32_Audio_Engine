@@ -274,10 +274,6 @@ bool AudioProfile::loadFromJSON(const char* path, AudioSettings& settings) {
 
   const char* resample = doc["resample"]["quality"] | DEFAULT_RESAMPLE_QUALITY;
   settings.setResampleQuality(resample);
-
-  settings.display.enabled = doc["display"]["enabled"] | DISPLAY_ENABLED;
-  settings.display.brightness = doc["display"]["brightness"] | 180;
-
   return true;
 }
 
@@ -316,9 +312,6 @@ bool AudioProfile::saveToJSON(const char* path, const AudioSettings& settings) {
   reverbObj["wet"] = settings.reverb.wet;
 
   doc["resample"]["quality"] = settings.getResampleQualityName();
-
-  doc["display"]["enabled"] = settings.display.enabled;
-  doc["display"]["brightness"] = settings.display.brightness;
 
   File file = filesystem->open(path, "w");
   if (!file) return false;
