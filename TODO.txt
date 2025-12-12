@@ -1,0 +1,69 @@
+TODO:
+
+AUDIOConfig.h Sollte das alles nicht in der System,json sein ? der user sollte alles maximal flexibel anpassen können
+
+in AudioCodecManager.h 
+
+  
+private:
+  AudioFilesystem* filesystem;
+  // Eigentlich sollten die codecs später im flieFS / spiffs liegen und beim booten automatisch erkannt werden oder so, bitte 
+  // nochmal die DOCS studieren, wir wollen alles maximal flexibel haben und so was wie hier nicht hardcodieren
+  AudioCodec_WAV* wavCodec;
+  
+  // Future: More codecs
+  // AudioCodec_MP3* mp3Codec;
+  // etc.
+};
+
+in AudioConsole.cpp
+
+// Tetris Theme - Built-in melody
+const Note tetrisTheme[] = {
+  { NOTE_E5, 400, 127 }, { NOTE_B4, 200, 127 }, { NOTE_C5, 200, 127 }, { NOTE_D5, 400, 127 }, { NOTE_C5, 200, 127 }, { NOTE_B4, 200, 127 }, { NOTE_A4, 400, 127 }, { NOTE_A4, 200, 127 }, { NOTE_C5, 200, 127 }, { NOTE_E5, 400, 127 }, { NOTE_D5, 200, 127 }, { NOTE_C5, 200, 127 }, { NOTE_B4, 600, 127 }, { NOTE_C5, 200, 127 }, { NOTE_D5, 400, 127 }, { NOTE_E5, 400, 127 }, { NOTE_C5, 400, 127 }, { NOTE_A4, 400, 127 }, { NOTE_A4, 400, 127 }, { NOTE_REST, 400, 0 }, { NOTE_D5, 400, 127 }, { NOTE_F5, 200, 127 }, { NOTE_A5, 400, 127 }, { NOTE_G5, 200, 127 }, { NOTE_F5, 200, 127 }, { NOTE_E5, 600, 127 }, { NOTE_C5, 200, 127 }, { NOTE_E5, 400, 127 }, { NOTE_D5, 200, 127 }, { NOTE_C5, 200, 127 }, { NOTE_B4, 400, 127 }, { NOTE_B4, 200, 127 }, { NOTE_C5, 200, 127 }, { NOTE_D5, 400, 127 }, { NOTE_E5, 400, 127 }, { NOTE_C5, 400, 127 }, { NOTE_A4, 400, 127 }, { NOTE_A4, 400, 127 }, { NOTE_REST, 400, 0 }
+};
+
+
+das sollte eigent,ich nicht vorhanden sein, denn das sollte von /melodies/Tetris.json spielen
+
+
+Display und alles was damit zu tun hat entfernen "// ============================================================================
+// DISPLAY CONFIGURATION
+// ============================================================================
+#define DISPLAY_ENABLED         1
+
+#if DISPLAY_ENABLED
+  #define PIN_SCLK              7
+  #define PIN_MOSI              6
+  #define PIN_TFT_CS            14
+  #define PIN_TFT_DC            15
+  #define PIN_TFT_RST           21
+  #define PIN_BL                22
+  #define LCD_WIDTH             172
+  #define LCD_HEIGHT            320
+  #define DEFAULT_BRIGHTNESS    180
+  
+  #define TFT_CS                PIN_TFT_CS
+  #define TFT_DC                PIN_TFT_DC
+  #define TFT_RST               PIN_TFT_RST
+#endif wir handhaben alles per console es geht rein um Audio , visualisieren ist nicht notwendig
+
+ich  weiß auch nicht ob wir "// ============================================================================
+// ESP32 VARIANT STRING
+// ============================================================================
+#if defined(CONFIG_IDF_TARGET_ESP32)
+  #define ESP32_VARIANT "ESP32"
+#elif defined(CONFIG_IDF_TARGET_ESP32S3)
+  #define ESP32_VARIANT "ESP32-S3"
+#elif defined(CONFIG_IDF_TARGET_ESP32C3)
+  #define ESP32_VARIANT "ESP32-C3"
+#elif defined(CONFIG_IDF_TARGET_ESP32C6)
+  #define ESP32_VARIANT "ESP32-C6"
+#else
+  #define ESP32_VARIANT "Unknown"
+#endif
+
+#define ESP32_HAS_DUAL_CORE     HAS_DUAL_CORE" das brauchen oder ob es überhaupt implementientiert ist ? das esp Modell wird ja eigentlich 
+auch von der die in dem fall adroino IDE bestimmt, wir ziehen später auf VSCODE und ESP Extension um, und das ganze projekt wird in ein größeres implementiert...
+
+
