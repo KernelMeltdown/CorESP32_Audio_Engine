@@ -1,5 +1,4 @@
 // AudioEngine.cpp - ESP32 Audio OS v1.9
-// Core Audio Engine with LFO Modulation
 
 #include "AudioEngine.h"
 #include "AudioConfig.h"

@@ -1,5 +1,4 @@
 // ESP32 Audio OS v2.0 - Universal Audio Engine
-// Enterprise-Grade Audio System with Codec Plugin Support
 
 #include "AudioConfig.h"
 #include "SystemConfig.h"
@@ -82,10 +81,7 @@ void printBanner() {
   Serial.println();
   Serial.println(F("╔══════════════════════════════════════════════════════════════════╗"));
   Serial.println(F("║                                                                  ║"));
-  Serial.println(F("║            ESP32 AUDIO OS v2.0 - ENTERPRISE EDITION             ║"));
-  Serial.println(F("║                                                                  ║"));
-  Serial.println(F("║  Universal Audio Engine with Plugin Architecture                ║"));
-  Serial.println(F("║  Real-time DSP • Multi-Format Codec Support • Profile System    ║"));
+  Serial.println(F("║            ESP32 AUDIO OS v2.0                                   ║"));
   Serial.println(F("║                                                                  ║"));
   Serial.println(F("╚══════════════════════════════════════════════════════════════════╝"));
   Serial.println();

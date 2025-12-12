@@ -1,5 +1,4 @@
 // AudioEngine.h - ESP32 Audio OS v1.9
-// Core Audio Engine with LFO Modulation
 
 #ifndef AUDIO_ENGINE_H
 #define AUDIO_ENGINE_H
