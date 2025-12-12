@@ -1,4 +1,4 @@
-// AudioFilesystem.h - SPIFFS Filesystem Manager
+// AudioFilesystem.h - LittleFS Filesystem Manager
 
 #ifndef AUDIO_FILESYSTEM_H
 #define AUDIO_FILESYSTEM_H
@@ -6,7 +6,7 @@
 #include <Arduino.h>
 #include "AudioConfig.h"
 #include <FS.h>
-#include <SPIFFS.h>
+#include <LittleFS.h>
 
 class AudioFilesystem {
 public:

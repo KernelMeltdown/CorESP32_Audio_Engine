@@ -1355,7 +1355,6 @@ void AudioConsole::cmdHelp(String args) {
     Serial.println(F("  audio reboot             Restart ESP32"));
     Serial.println();
     Serial.println(F("EXAMPLES:"));
-    Serial.println(F("  audio play               Play Tetris (default)"));
     Serial.println(F("  audio waveform square    8-bit retro sound"));
     Serial.println(F("  audio filter lowpass     Enable lowpass filter"));
     Serial.println(F("  audio reverb on          Enable hall reverb"));

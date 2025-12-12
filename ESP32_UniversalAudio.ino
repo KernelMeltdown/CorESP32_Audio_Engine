@@ -124,7 +124,7 @@ void printSystemInfo() {
   Serial.println(F("│ ✓ Smart Resampling (Linear/Cubic/Sinc)                           │"));
   Serial.println(F("│ ✓ Profile System (Load/Save/Export)                              │"));
   Serial.println(F("│ ✓ Dynamic Codec Plugin Architecture                              │"));
-  Serial.println(F("│ ✓ SPIFFS Filesystem Integration                                  │"));
+  Serial.println(F("│ ✓ LittleFS Filesystem Integration                                │"));
   Serial.println(F("│ ✓ Full Console Control                                           │"));
   
   #if USE_FIXED_POINT_MATH

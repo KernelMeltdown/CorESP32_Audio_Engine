@@ -1,22 +1,22 @@
-// AudioFilesystem.cpp - SPIFFS Filesystem Manager
+// AudioFilesystem.cpp - LittleFS Filesystem Manager
 
 #include "AudioFilesystem.h"
 
 AudioFilesystem::AudioFilesystem() : initialized(false) {}
 
 bool AudioFilesystem::init() {
-  Serial.println(F("[FS] Mounting SPIFFS..."));
+  Serial.println(F("[FS] Mounting LittleFS..."));
   
-  if (!SPIFFS.begin(FS_FORMAT_ON_FAIL)) {
-    Serial.println(F("[FS] ✗ SPIFFS mount failed!"));
+  if (!LittleFS.begin(FS_FORMAT_ON_FAIL)) {
+    Serial.println(F("[FS] ✗ LittleFS mount failed!"));
     Serial.println();
-    Serial.println(F("=== SPIFFS SETUP REQUIRED ==="));
+    Serial.println(F("=== LITTLEFS SETUP REQUIRED ==="));
     Serial.println(F("1. Check partition scheme:"));
     Serial.println(F("   Arduino IDE: Tools → Partition Scheme → 'Default 4MB with spiffs'"));
     Serial.println(F("   PlatformIO: board_build.partitions = default.csv"));
     Serial.println();
-    Serial.println(F("2. Upload SPIFFS data:"));
-    Serial.println(F("   Arduino IDE: Tools → ESP32 Sketch Data Upload"));
+    Serial.println(F("2. Upload LittleFS data:"));
+    Serial.println(F("   Arduino IDE: Sketch → Data Folder → Add File (files auto-upload)"));
     Serial.println(F("   PlatformIO: pio run --target uploadfs"));
     Serial.println();
     Serial.println(F("3. Create 'data/' folder structure:"));
@@ -30,7 +30,7 @@ bool AudioFilesystem::init() {
     Serial.println(F("   ├── audio/"));
     Serial.println(F("   └── codecs/"));
     Serial.println();
-    Serial.println(F("Or set FS_FORMAT_ON_FAIL=true in AudioConfig.h (will erase data!)"));
+    Serial.println(F("Or set FS_FORMAT_ON_FAIL=true in AudioConfig.h (will format!)"));
     Serial.println(F("============================="));
     return false;
   }
@@ -56,7 +56,7 @@ bool AudioFilesystem::init() {
 
 void AudioFilesystem::deinit() {
   if (!initialized) return;
-  SPIFFS.end();
+  LittleFS.end();
   initialized = false;
   Serial.println(F("[FS] Unmounted"));
 }
@@ -73,8 +73,8 @@ void AudioFilesystem::ensureDirectories() {
   };
   
   for (const char* dir : dirs) {
-    if (!SPIFFS.exists(dir)) {
-      if (SPIFFS.mkdir(dir)) {
+    if (!LittleFS.exists(dir)) {
+      if (LittleFS.mkdir(dir)) {
         Serial.printf("[FS]   ✓ Created: %s\n", dir);
       } else {
         Serial.printf("[FS]   ✗ Failed: %s\n", dir);
@@ -103,8 +103,8 @@ void AudioFilesystem::verifyDataStructure() {
   bool allGood = true;
   
   for (const auto& f : files) {
-    if (SPIFFS.exists(f.path)) {
-      File file = SPIFFS.open(f.path, "r");
+    if (LittleFS.exists(f.path)) {
+      File file = LittleFS.open(f.path, "r");
       Serial.printf("[FS]   ✓ %s (%d bytes)\n", f.desc, file.size());
       file.close();
     } else {
@@ -119,37 +119,37 @@ void AudioFilesystem::verifyDataStructure() {
   
   if (!allGood) {
     Serial.println();
-    Serial.println(F("[FS] ⚠ Required files missing! Upload SPIFFS data folder."));
+    Serial.println(F("[FS] ⚠ Required files missing! Upload LittleFS data folder."));
     Serial.println();
   }
 }
 
 bool AudioFilesystem::exists(const char* path) {
-  return SPIFFS.exists(path);
+  return LittleFS.exists(path);
 }
 
 bool AudioFilesystem::remove(const char* path) {
-  return SPIFFS.remove(path);
+  return LittleFS.remove(path);
 }
 
 bool AudioFilesystem::rename(const char* oldPath, const char* newPath) {
-  return SPIFFS.rename(oldPath, newPath);
+  return LittleFS.rename(oldPath, newPath);
 }
 
 File AudioFilesystem::open(const char* path, const char* mode) {
-  return SPIFFS.open(path, mode);
+  return LittleFS.open(path, mode);
 }
 
 bool AudioFilesystem::mkdir(const char* path) {
-  return SPIFFS.mkdir(path);
+  return LittleFS.mkdir(path);
 }
 
 bool AudioFilesystem::rmdir(const char* path) {
-  return SPIFFS.rmdir(path);
+  return LittleFS.rmdir(path);
 }
 
 void AudioFilesystem::listDir(const char* path) {
-  File root = SPIFFS.open(path);
+  File root = LittleFS.open(path);
   if (!root) {
     Serial.println(F("[ERROR] Cannot open directory"));
     return;
@@ -179,11 +179,11 @@ void AudioFilesystem::listDir(const char* path) {
 }
 
 size_t AudioFilesystem::totalBytes() {
-  return SPIFFS.totalBytes();
+  return LittleFS.totalBytes();
 }
 
 size_t AudioFilesystem::usedBytes() {
-  return SPIFFS.usedBytes();
+  return LittleFS.usedBytes();
 }
 
 size_t AudioFilesystem::freeBytes() {

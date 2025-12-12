@@ -114,9 +114,9 @@
 #define MAX_PROFILE_DESC        128
 
 // ============================================================================
-// FILESYSTEM PATHS
+// FILESYSTEM PATHS (LittleFS)
 // ============================================================================
-#define FS_MOUNT_POINT          "/spiffs"
+#define FS_MOUNT_POINT          "/littlefs"
 #define FS_FORMAT_ON_FAIL       false
 
 #define PATH_CONFIG             "/config"

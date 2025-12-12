@@ -56,4 +56,5 @@ bei "define FS_FORMAT_ON_FAIL       false" erscheint
 02:54:24.730 -> 
 02:54:24.730 -> System halted. Please fix and reboot.
 
-und im allgemeinen Audio list /melodies zeigt keine datein
+und im allgemeinen Audio list /melodies zeigt keine Dateien
+
