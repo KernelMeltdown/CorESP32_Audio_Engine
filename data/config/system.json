@@ -1,13 +1,41 @@
 {
-  "version": "1.0",
+  "version": "2.0",
   "startup": {
     "profile": "default",
     "mode": "auto"
   },
   "features": {
     "audio_engine": true,
-    "display": true,
+    "display": false,
     "wifi": false,
     "bluetooth": false
+  },
+  "defaults": {
+    "audio": {
+      "mode": "i2s",
+      "sampleRate": 22050,
+      "voices": 4,
+      "volume": 200
+    },
+    "i2s": {
+      "pin": 1,
+      "bufferSize": 128,
+      "numBuffers": 4,
+      "amplitude": 12000
+    },
+    "pwm": {
+      "pin": 2,
+      "frequency": 78125,
+      "resolution": 9,
+      "amplitude": 5000,
+      "gain": 7
+    },
+    "effects": {
+      "eq": false,
+      "filter": false,
+      "reverb": false,
+      "lfo": false,
+      "delay": false
+    }
   }
 }

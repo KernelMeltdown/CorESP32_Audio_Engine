@@ -35,3 +35,25 @@ ich  weiß auch nicht ob wir "// ===============================================
 auch von der die in dem fall adroino IDE bestimmt, wir ziehen später auf VSCODE und ESP Extension um, und das ganze projekt wird in ein größeres implementiert...
 
 
+irgendwas stimmt mit dem spiffs nicht "#define FS_MOUNT_POINT          "/spiffs"
+Das hier "#define FS_FORMAT_ON_FAIL       true" sollte eigentlich false sein oder ? 
+denn wenn ich etwas dem Sketch anhänge wird das ja direkt wieder gelöscht
+
+#define PROFILE_PATH            "/profiles"
+#define CONFIG_PATH             "/config"
+#define AUDIO_PATH              "/audio"
+#define MELODY_PATH             "/melodies"" 02:54:24.730 -> ESP-ROM:esp32c6-20220919
+
+bei "define FS_FORMAT_ON_FAIL       false" erscheint 
+02:54:24.730 -> me -> 'Default 4MB with spiffs'
+02:54:24.730 -> 
+02:54:24.730 ->   3. Upload sketch again
+02:54:24.730 -> 
+02:54:24.730 -> Or upload SPIFFS data folder:
+02:54:24.730 ->   1. Create 'data' folder in sketch directory
+02:54:24.730 ->   2. Add /melodies/tetris.json
+02:54:24.730 ->   3. Use 'ESP32 Sketch Data Upload' tool
+02:54:24.730 -> 
+02:54:24.730 -> System halted. Please fix and reboot.
+
+und im allgemeinen Audio list /melodies zeigt keine datein

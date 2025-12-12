@@ -1,40 +1,132 @@
-/*
- ╔══════════════════════════════════════════════════════════════════════════════╗
- ║  AUDIO CODEC MANAGER - Implementation                                       ║
- ╚══════════════════════════════════════════════════════════════════════════════╝
-*/
+// AudioCodecManager.cpp - Dynamic Codec Plugin Management
 
 #include "AudioCodecManager.h"
 
 AudioCodecManager::AudioCodecManager() 
-  : filesystem(nullptr), wavCodec(nullptr) {}
+  : filesystem(nullptr), codecCount(0) {
+  for (int i = 0; i < MAX_CODEC_PLUGINS; i++) {
+    codecs[i].codec = nullptr;
+    codecs[i].builtin = false;
+    codecs[i].active = false;
+  }
+}
 
 AudioCodecManager::~AudioCodecManager() {
-  if (wavCodec) delete wavCodec;
+  for (int i = 0; i < codecCount; i++) {
+    if (codecs[i].codec && codecs[i].active) {
+      delete codecs[i].codec;
+      codecs[i].codec = nullptr;
+    }
+  }
 }
 
 void AudioCodecManager::init(AudioFilesystem* fs) {
   filesystem = fs;
-  
-  // Register built-in codecs
-  wavCodec = new AudioCodec_WAV(filesystem);
+  codecCount = 0;
   
   Serial.println(F("[CODEC] Manager initialized"));
-  Serial.printf("[CODEC] Registered: %s\n", wavCodec->getName());
+  
+  registerBuiltinCodecs();
+  
+  if (filesystem && filesystem->isInitialized()) {
+    scanForCodecPlugins();
+  }
+}
+
+void AudioCodecManager::registerBuiltinCodecs() {
+  Serial.println(F("[CODEC] Registering built-in codecs..."));
+  
+  AudioCodec_WAV* wavCodec = new AudioCodec_WAV(filesystem);
+  if (registerCodec("wav", wavCodec, true)) {
+    Serial.println(F("[CODEC]   ✓ WAV (PCM 8/16-bit, Mono/Stereo)"));
+  }
+}
+
+bool AudioCodecManager::registerCodec(const char* name, AudioCodec* codec, bool builtin) {
+  if (codecCount >= MAX_CODEC_PLUGINS) {
+    Serial.println(F("[CODEC] ✗ Registry full!"));
+    return false;
+  }
+  
+  if (!codec) {
+    return false;
+  }
+  
+  strncpy(codecs[codecCount].name, name, sizeof(codecs[codecCount].name) - 1);
+  codecs[codecCount].codec = codec;
+  codecs[codecCount].builtin = builtin;
+  codecs[codecCount].active = true;
+  codecCount++;
+  
+  return true;
+}
+
+void AudioCodecManager::scanForCodecPlugins() {
+  if (!filesystem->exists(PATH_CODECS)) {
+    Serial.println(F("[CODEC] No /codecs directory (plugins disabled)"));
+    return;
+  }
+  
+  Serial.println(F("[CODEC] Scanning for plugins..."));
+  
+  File root = filesystem->open(PATH_CODECS, "r");
+  if (!root || !root.isDirectory()) {
+    return;
+  }
+  
+  File file = root.openNextFile();
+  bool foundAny = false;
+  
+  while (file) {
+    if (!file.isDirectory()) {
+      String filename = String(file.name());
+      if (filename.endsWith(".so") || filename.endsWith(".bin")) {
+        Serial.printf("[CODEC]   Found plugin: %s (not implemented yet)\n", file.name());
+        foundAny = true;
+      }
+    }
+    file = root.openNextFile();
+  }
+  
+  if (!foundAny) {
+    Serial.println(F("[CODEC]   (no plugins found)"));
+  }
+}
+
+bool AudioCodecManager::loadCodecPlugin(const char* pluginPath) {
+  Serial.printf("[CODEC] Plugin loading not yet implemented: %s\n", pluginPath);
+  return false;
 }
 
 AudioCodec* AudioCodecManager::detectCodec(const char* filename) {
   String fn = String(filename);
   fn.toLowerCase();
   
-  // Check WAV
-  if (fn.endsWith(".wav") || fn.endsWith(".wave")) {
-    if (wavCodec && wavCodec->probe(filename)) {
-      return wavCodec;
+  for (int i = 0; i < codecCount; i++) {
+    if (!codecs[i].active) continue;
+    
+    const char** extensions = codecs[i].codec->getExtensions();
+    
+    for (int e = 0; extensions[e] != nullptr; e++) {
+      if (fn.endsWith(extensions[e])) {
+        if (codecs[i].codec->probe(filename)) {
+          return codecs[i].codec;
+        }
+      }
     }
   }
   
-  // Future: Check other codecs
+  return nullptr;
+}
+
+AudioCodec* AudioCodecManager::getCodec(const char* name) {
+  for (int i = 0; i < codecCount; i++) {
+    if (!codecs[i].active) continue;
+    
+    if (strcasecmp(codecs[i].name, name) == 0) {
+      return codecs[i].codec;
+    }
+  }
   
   return nullptr;
 }
@@ -44,28 +136,37 @@ void AudioCodecManager::listCodecs() {
   Serial.println(F("║                    AVAILABLE CODECS                            ║"));
   Serial.println(F("╚════════════════════════════════════════════════════════════════╝\n"));
   
-  Serial.println(F("  NAME    VERSION   STATUS      MEMORY    CPU     FORMATS"));
+  if (codecCount == 0) {
+    Serial.println(F("  No codecs registered!"));
+    Serial.println();
+    return;
+  }
+  
+  Serial.println(F("  NAME    VERSION   TYPE        MEMORY    CPU     FORMATS"));
   Serial.println(F("  ────────────────────────────────────────────────────────────"));
   
-  // WAV
-  if (wavCodec) {
-    CodecCapabilities caps = wavCodec->getCapabilities();
-    Serial.printf("  %-7s %-9s Built-in    %d KB     %.0f%%     .wav\n",
-                  wavCodec->getName(),
-                  wavCodec->getVersion(),
+  for (int i = 0; i < codecCount; i++) {
+    if (!codecs[i].active) continue;
+    
+    CodecCapabilities caps = codecs[i].codec->getCapabilities();
+    const char** exts = codecs[i].codec->getExtensions();
+    
+    String formats = "";
+    for (int e = 0; exts[e] != nullptr; e++) {
+      if (e > 0) formats += ", ";
+      formats += exts[e];
+    }
+    
+    Serial.printf("  %-7s %-9s %-11s %d KB     %.0f%%     %s\n",
+                  codecs[i].codec->getName(),
+                  codecs[i].codec->getVersion(),
+                  codecs[i].builtin ? "Built-in" : "Plugin",
                   caps.ramUsage / 1024,
-                  caps.cpuUsage * 100);
+                  caps.cpuUsage * 100,
+                  formats.c_str());
   }
   
   Serial.println();
-}
-
-AudioCodec* AudioCodecManager::getCodec(const char* name) {
-  if (strcmp(name, "wav") == 0 || strcmp(name, "WAV") == 0) {
-    return wavCodec;
-  }
-  
-  return nullptr;
 }
 
 void AudioCodecManager::showCodecInfo(const char* name) {
@@ -83,7 +184,15 @@ void AudioCodecManager::showCodecInfo(const char* name) {
   
   Serial.printf("Name:           %s\n", codec->getName());
   Serial.printf("Version:        %s\n", codec->getVersion());
-  Serial.printf("Status:         Built-in\n");
+  
+  bool isBuiltin = false;
+  for (int i = 0; i < codecCount; i++) {
+    if (codecs[i].codec == codec) {
+      isBuiltin = codecs[i].builtin;
+      break;
+    }
+  }
+  Serial.printf("Type:           %s\n", isBuiltin ? "Built-in" : "Plugin");
   
   Serial.println(F("\nCapabilities:"));
   Serial.printf("  %s Decode\n", caps.canDecode ? "✓" : "✗");
@@ -101,15 +210,15 @@ void AudioCodecManager::showCodecInfo(const char* name) {
   Serial.printf("  CPU:           ~%.0f%% @ decode\n", caps.cpuUsage * 100);
   
   Serial.println(F("\nExtensions:"));
-  const char** exts = codec->getExtensions();
   Serial.print(F("  "));
+  const char** exts = codec->getExtensions();
   for (int i = 0; exts[i] != nullptr; i++) {
     Serial.printf("%s ", exts[i]);
   }
   Serial.println();
   
   Serial.println(F("\nDependencies:   None"));
-  Serial.println(F("Removable:      No (built-in)"));
+  Serial.printf("Removable:      %s\n", isBuiltin ? "No (built-in)" : "Yes");
   Serial.println();
 }
 

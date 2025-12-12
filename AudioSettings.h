@@ -1,4 +1,4 @@
-// AudioSettings.h - ESP32 Audio OS v1.9
+// AudioSettings.h - ESP32 Audio OS v2.0
 
 #ifndef AUDIO_SETTINGS_H
 #define AUDIO_SETTINGS_H
@@ -202,14 +202,14 @@ struct ReverbConfig {
 };
 
 // ============================================================================
-// LFO MODULATION CONFIGURATION (NEW!)
+// LFO MODULATION CONFIGURATION
 // ============================================================================
 struct LFOConfig {
   bool enabled;
   bool vibratoEnabled;
   bool tremoloEnabled;
-  float rate;     // Hz (0.1 - 20 Hz)
-  float depth;    // % (0 - 100%)
+  float rate;
+  float depth;
   
   LFOConfig() {
     enabled = DEFAULT_LFO_ENABLED;
@@ -258,7 +258,7 @@ struct AudioSettings {
   EQConfig eq;
   FilterConfig filter;
   ReverbConfig reverb;
-  LFOConfig lfo;        // NEW!
+  LFOConfig lfo;
   DelayConfig delay;
   
   ResampleQuality resampleQuality;

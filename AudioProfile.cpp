@@ -1,8 +1,4 @@
-/*
- ╔══════════════════════════════════════════════════════════════════════════════╗
- ║  AUDIO PROFILE - Implementation                                             ║
- ╚══════════════════════════════════════════════════════════════════════════════╝
-*/
+// AudioProfile.cpp - Profile Management System
 
 #include "AudioProfile.h"
 
@@ -69,7 +65,6 @@ bool AudioProfile::saveProfile(const char* name) {
 bool AudioProfile::deleteProfile(const char* name) {
   if (!filesystem || !filesystem->isInitialized()) return false;
 
-  // Don't allow deleting default profile
   if (strcmp(name, "default") == 0) {
     Serial.println(F("[ERROR] Cannot delete default profile"));
     return false;
@@ -115,10 +110,13 @@ void AudioProfile::listProfiles() {
       String filename = String(file.name());
       if (filename.endsWith(".json")) {
         found = true;
+        
+        int lastSlash = filename.lastIndexOf('/');
+        if (lastSlash >= 0) {
+          filename = filename.substring(lastSlash + 1);
+        }
         filename.replace(".json", "");
-        filename.replace(String(PATH_PROFILES) + "/", "");
 
-        // Check if it's the current profile
         bool isCurrent = (filename == String(currentSettings.name));
 
         Serial.printf("  %s %s\n",
@@ -179,15 +177,32 @@ void AudioProfile::showProfileInfo(const char* name) {
   }
 
   Serial.printf("\nEffects:\n");
-  Serial.printf("  EQ:          Bass %+d, Mid %+d, Treble %+d dB\n",
+  Serial.printf("  EQ:          %s (Bass %+d, Mid %+d, Treble %+d dB)\n",
+                temp.eq.enabled ? "On" : "Off",
                 temp.eq.bass, temp.eq.mid, temp.eq.treble);
+                
+  Serial.printf("  Filter:      %s (%s, %.0fHz, Q:%.2f)\n",
+                temp.filter.enabled ? "On" : "Off",
+                temp.filter.getTypeName(),
+                temp.filter.cutoff,
+                temp.filter.resonance);
                 
   Serial.printf("  Reverb:      %s (Room:%.2f, Damp:%.2f, Wet:%.2f)\n",
                 temp.reverb.enabled ? "On" : "Off",
                 temp.reverb.roomSize,
                 temp.reverb.damping,
                 temp.reverb.wet);
-
+                
+  Serial.printf("  LFO:         %s (Rate:%.1fHz, Depth:%.0f%%)\n",
+                temp.lfo.enabled ? "On" : "Off",
+                temp.lfo.rate,
+                temp.lfo.depth);
+                
+  Serial.printf("  Delay:       %s (%dms, FB:%d%%, Mix:%d%%)\n",
+                temp.delay.enabled ? "On" : "Off",
+                temp.delay.timeMs,
+                temp.delay.feedback,
+                temp.delay.mix);
 
   Serial.printf("\nResampling:    %s\n", temp.getResampleQualityName());
   Serial.println();
@@ -196,7 +211,7 @@ void AudioProfile::showProfileInfo(const char* name) {
 void AudioProfile::createDefaultProfile() {
   Serial.println(F("[PROFILE] Creating default profile..."));
 
-  currentSettings = AudioSettings();  // Reset to defaults
+  currentSettings = AudioSettings();
 
   if (filesystem && filesystem->isInitialized()) {
     saveProfile("default");
@@ -204,7 +219,6 @@ void AudioProfile::createDefaultProfile() {
 }
 
 bool AudioProfile::loadStartupProfile() {
-  // Try to load 'default' profile
   if (profileExists("default")) {
     return loadProfile("default");
   }
@@ -213,16 +227,12 @@ bool AudioProfile::loadStartupProfile() {
 }
 
 bool AudioProfile::setStartupProfile(const char* name) {
-  // For now, just rename the profile to 'default'
-  // Later: implement system.json config
   if (!profileExists(name)) {
     Serial.println(F("[ERROR] Profile not found"));
     return false;
   }
 
   Serial.printf("[CONFIG] Setting '%s' as startup profile\n", name);
-  // TODO: Write to system.json
-
   return true;
 }
 
@@ -230,7 +240,7 @@ bool AudioProfile::loadFromJSON(const char* path, AudioSettings& settings) {
   File file = filesystem->open(path, "r");
   if (!file) return false;
 
-  StaticJsonDocument<2048> doc;
+  StaticJsonDocument<JSON_DOC_SIZE> doc;
   DeserializationError error = deserializeJson(doc, file);
   file.close();
 
@@ -239,48 +249,68 @@ bool AudioProfile::loadFromJSON(const char* path, AudioSettings& settings) {
     return false;
   }
 
-  // Parse JSON
   strncpy(settings.name, doc["name"] | "default", sizeof(settings.name) - 1);
   strncpy(settings.description, doc["description"] | "", sizeof(settings.description) - 1);
 
-  const char* mode = doc["audio"]["mode"] | DEFAULT_AUDIO_MODE;
+  const char* mode = doc["audio"]["mode"] | "i2s";
   settings.setMode(mode);
 
-  settings.sampleRate = doc["audio"]["sampleRate"] | DEFAULT_SAMPLE_RATE;
-  settings.voices = doc["audio"]["voices"] | DEFAULT_MAX_VOICES;
-  settings.volume = doc["audio"]["volume"] | DEFAULT_VOLUME;
+  settings.sampleRate = doc["audio"]["sampleRate"] | 22050;
+  settings.voices = doc["audio"]["voices"] | 4;
+  settings.volume = doc["audio"]["volume"] | 200;
 
-  settings.i2s.pin = doc["hardware"]["i2s"]["pin"] | DEFAULT_I2S_PIN;
-  settings.i2s.bufferSize = doc["hardware"]["i2s"]["bufferSize"] | DEFAULT_I2S_BUFFER;
-  settings.i2s.numBuffers = doc["hardware"]["i2s"]["numBuffers"] | DEFAULT_I2S_BUFFERS;
-  settings.i2s.amplitude = doc["hardware"]["i2s"]["amplitude"] | DEFAULT_I2S_AMPLITUDE;
+  settings.i2s.pin = doc["hardware"]["i2s"]["pin"] | 1;
+  settings.i2s.bufferSize = doc["hardware"]["i2s"]["bufferSize"] | 128;
+  settings.i2s.numBuffers = doc["hardware"]["i2s"]["numBuffers"] | 4;
+  settings.i2s.amplitude = doc["hardware"]["i2s"]["amplitude"] | 12000;
 
-  settings.pwm.pin = doc["hardware"]["pwm"]["pin"] | DEFAULT_PWM_PIN;
-  settings.pwm.frequency = doc["hardware"]["pwm"]["frequency"] | DEFAULT_PWM_FREQUENCY;
-  settings.pwm.resolution = doc["hardware"]["pwm"]["resolution"] | DEFAULT_PWM_RESOLUTION;
-  settings.pwm.amplitude = doc["hardware"]["pwm"]["amplitude"] | DEFAULT_PWM_AMPLITUDE;
-  settings.pwm.gain = doc["hardware"]["pwm"]["gain"] | DEFAULT_PWM_GAIN;
+  settings.pwm.pin = doc["hardware"]["pwm"]["pin"] | 2;
+  settings.pwm.frequency = doc["hardware"]["pwm"]["frequency"] | 78125;
+  settings.pwm.resolution = doc["hardware"]["pwm"]["resolution"] | 9;
+  settings.pwm.amplitude = doc["hardware"]["pwm"]["amplitude"] | 5000;
+  settings.pwm.gain = doc["hardware"]["pwm"]["gain"] | 7;
 
-  settings.eq.bass = doc["effects"]["eq"]["bass"] | 0;
-  settings.eq.mid = doc["effects"]["eq"]["mid"] | 0;
-  settings.eq.treble = doc["effects"]["eq"]["treble"] | 0;
+  JsonObject eqObj = doc["effects"]["eq"];
+  settings.eq.enabled = eqObj["enabled"] | false;
+  settings.eq.bass = eqObj["bass"] | 0;
+  settings.eq.mid = eqObj["mid"] | 0;
+  settings.eq.treble = eqObj["treble"] | 0;
+
+  JsonObject filterObj = doc["effects"]["filter"];
+  settings.filter.enabled = filterObj["enabled"] | false;
+  settings.filter.setType(filterObj["type"] | "lowpass");
+  settings.filter.cutoff = filterObj["cutoff"] | 1000.0f;
+  settings.filter.resonance = filterObj["resonance"] | 0.1f;
 
   JsonObject reverbObj = doc["effects"]["reverb"];
-  settings.reverb.enabled = reverbObj["enabled"] | DEFAULT_REVERB_ENABLED;
-  settings.reverb.roomSize = reverbObj["roomSize"] | DEFAULT_REVERB_ROOM_SIZE;
-  settings.reverb.damping = reverbObj["damping"] | DEFAULT_REVERB_DAMPING;
-  settings.reverb.wet = reverbObj["wet"] | DEFAULT_REVERB_WET;
+  settings.reverb.enabled = reverbObj["enabled"] | false;
+  settings.reverb.roomSize = reverbObj["roomSize"] | 0.5f;
+  settings.reverb.damping = reverbObj["damping"] | 0.5f;
+  settings.reverb.wet = reverbObj["wet"] | 0.33f;
 
+  JsonObject lfoObj = doc["effects"]["lfo"];
+  settings.lfo.enabled = lfoObj["enabled"] | false;
+  settings.lfo.vibratoEnabled = lfoObj["vibratoEnabled"] | false;
+  settings.lfo.tremoloEnabled = lfoObj["tremoloEnabled"] | false;
+  settings.lfo.rate = lfoObj["rate"] | 5.0f;
+  settings.lfo.depth = lfoObj["depth"] | 20.0f;
 
-  const char* resample = doc["resample"]["quality"] | DEFAULT_RESAMPLE_QUALITY;
+  JsonObject delayObj = doc["effects"]["delay"];
+  settings.delay.enabled = delayObj["enabled"] | false;
+  settings.delay.timeMs = delayObj["timeMs"] | 250;
+  settings.delay.feedback = delayObj["feedback"] | 50;
+  settings.delay.mix = delayObj["mix"] | 30;
+
+  const char* resample = doc["resample"]["quality"] | "best";
   settings.setResampleQuality(resample);
+  
   return true;
 }
 
 bool AudioProfile::saveToJSON(const char* path, const AudioSettings& settings) {
-  StaticJsonDocument<2048> doc;
+  StaticJsonDocument<JSON_DOC_SIZE> doc;
 
-  doc["schema_version"] = PROFILE_SCHEMA_VERSION;
+  doc["schema_version"] = SCHEMA_VERSION;
   doc["engine_version"] = AUDIO_OS_VERSION;
   doc["name"] = settings.name;
   doc["description"] = settings.description;
@@ -301,15 +331,36 @@ bool AudioProfile::saveToJSON(const char* path, const AudioSettings& settings) {
   doc["hardware"]["pwm"]["amplitude"] = settings.pwm.amplitude;
   doc["hardware"]["pwm"]["gain"] = settings.pwm.gain;
 
-  doc["effects"]["eq"]["bass"] = settings.eq.bass;
-  doc["effects"]["eq"]["mid"] = settings.eq.mid;
-  doc["effects"]["eq"]["treble"] = settings.eq.treble;
+  JsonObject eqObj = doc["effects"].createNestedObject("eq");
+  eqObj["enabled"] = settings.eq.enabled;
+  eqObj["bass"] = settings.eq.bass;
+  eqObj["mid"] = settings.eq.mid;
+  eqObj["treble"] = settings.eq.treble;
+
+  JsonObject filterObj = doc["effects"].createNestedObject("filter");
+  filterObj["enabled"] = settings.filter.enabled;
+  filterObj["type"] = settings.filter.getTypeName();
+  filterObj["cutoff"] = settings.filter.cutoff;
+  filterObj["resonance"] = settings.filter.resonance;
 
   JsonObject reverbObj = doc["effects"].createNestedObject("reverb");
   reverbObj["enabled"] = settings.reverb.enabled;
   reverbObj["roomSize"] = settings.reverb.roomSize;
   reverbObj["damping"] = settings.reverb.damping;
   reverbObj["wet"] = settings.reverb.wet;
+
+  JsonObject lfoObj = doc["effects"].createNestedObject("lfo");
+  lfoObj["enabled"] = settings.lfo.enabled;
+  lfoObj["vibratoEnabled"] = settings.lfo.vibratoEnabled;
+  lfoObj["tremoloEnabled"] = settings.lfo.tremoloEnabled;
+  lfoObj["rate"] = settings.lfo.rate;
+  lfoObj["depth"] = settings.lfo.depth;
+
+  JsonObject delayObj = doc["effects"].createNestedObject("delay");
+  delayObj["enabled"] = settings.delay.enabled;
+  delayObj["timeMs"] = settings.delay.timeMs;
+  delayObj["feedback"] = settings.delay.feedback;
+  delayObj["mix"] = settings.delay.mix;
 
   doc["resample"]["quality"] = settings.getResampleQualityName();
 
@@ -365,7 +416,7 @@ bool AudioProfile::importProfileJSON() {
   Serial.println(F("[IMPORT] Paste JSON, end with '###' on new line:"));
 
   String jsonData = "";
-  unsigned long timeout = millis() + 30000;  // 30 sec timeout
+  unsigned long timeout = millis() + 30000;
 
   while (millis() < timeout) {
     if (Serial.available()) {
@@ -384,8 +435,7 @@ bool AudioProfile::importProfileJSON() {
     return false;
   }
 
-  // Parse to validate
-  StaticJsonDocument<2048> doc;
+  StaticJsonDocument<JSON_DOC_SIZE> doc;
   DeserializationError error = deserializeJson(doc, jsonData);
 
   if (error) {

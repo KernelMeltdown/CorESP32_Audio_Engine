@@ -1,21 +1,19 @@
 {
-  "schema_version": "1.0",
-  "engine_version": "1.0.0",
+  "schema_version": "2.0",
+  "engine_version": "2.0.0",
   "name": "default",
   "description": "Factory default audio settings",
-  
   "audio": {
     "mode": "i2s",
     "sampleRate": 22050,
     "voices": 4,
     "volume": 200
   },
-  
   "hardware": {
     "i2s": {
       "pin": 1,
-      "bufferSize": 64,
-      "numBuffers": 2,
+      "bufferSize": 128,
+      "numBuffers": 4,
       "amplitude": 12000
     },
     "pwm": {
@@ -26,18 +24,40 @@
       "gain": 7
     }
   },
-  
   "effects": {
     "eq": {
+      "enabled": false,
       "bass": 0,
       "mid": 0,
       "treble": 0
     },
-    "reverb": 0.0
+    "filter": {
+      "enabled": false,
+      "type": "lowpass",
+      "cutoff": 1000.0,
+      "resonance": 0.1
+    },
+    "reverb": {
+      "enabled": false,
+      "roomSize": 0.5,
+      "damping": 0.5,
+      "wet": 0.33
+    },
+    "lfo": {
+      "enabled": false,
+      "vibratoEnabled": false,
+      "tremoloEnabled": false,
+      "rate": 5.0,
+      "depth": 20.0
+    },
+    "delay": {
+      "enabled": false,
+      "timeMs": 250,
+      "feedback": 50,
+      "mix": 30
+    }
   },
-  
   "resample": {
     "quality": "best"
-  },
-  
+  }
 }

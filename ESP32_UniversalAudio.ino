@@ -1,22 +1,21 @@
-/*
-╔══════════════════════════════════════════════════════════════════════════════╗
-║                        ESP32 UNIVERSAL AUDIO OS v1.9.0                       ║
-╚══════════════════════════════════════════════════════════════════════════════╝
-*/
+// ESP32 Audio OS v2.0 - Universal Audio Engine
+// Enterprise-Grade Audio System with Codec Plugin Support
 
 #include "AudioConfig.h"
-#include "AudioEngine.h"
-#include "AudioConsole.h"
-#include "AudioProfile.h"
+#include "SystemConfig.h"
 #include "AudioFilesystem.h"
+#include "AudioEngine.h"
+#include "AudioProfile.h"
 #include "AudioCodecManager.h"
+#include "AudioConsole.h"
 
 // ============================================================================
 // GLOBAL INSTANCES
 // ============================================================================
-AudioEngine audio;
-AudioProfile profile;
+SystemConfig systemConfig;
 AudioFilesystem filesystem;
+AudioEngine audioEngine;
+AudioProfile profileManager;
 AudioCodecManager codecManager;
 AudioConsole console;
 
@@ -24,90 +23,140 @@ AudioConsole console;
 // SETUP
 // ============================================================================
 void setup() {
-  Serial.begin(115200);
-  delay(100);
-
-  Serial.println();
-  Serial.println(F("╔════════════════════════════════════════════════════════╗"));
-  Serial.println(F("║           ESP32 UNIVERSAL AUDIO OS v1.9.0             ║"));
-  Serial.println(F("║                   Initializing...                      ║"));
-  Serial.println(F("╚════════════════════════════════════════════════════════╝"));
-  Serial.println();
-
-  // Initialize filesystem (CRITICAL!)
-  Serial.print(F("[INIT] Filesystem... "));
+  Serial.begin(SERIAL_BAUD_RATE);
+  delay(500);
+  
+  printBanner();
+  printSystemInfo();
+  
+  // 1. Initialize Filesystem
   if (!filesystem.init()) {
-    Serial.println(F("FAILED!"));
-    Serial.println();
-    Serial.println(F("╔════════════════════════════════════════════════════════╗"));
-    Serial.println(F("║                    FILESYSTEM ERROR                    ║"));
-    Serial.println(F("╚════════════════════════════════════════════════════════╝"));
-    Serial.println();
-    Serial.println(F("ERROR: SPIFFS mount failed!"));
-    Serial.println(F(""));
-    Serial.println(F("SOLUTION:"));
-    Serial.println(F("  1. Tools -> Partition Scheme -> 'Default 4MB with spiffs'"));
-    Serial.println(F("  2. Tools -> Erase Flash -> 'All Flash Contents'"));
-    Serial.println(F("  3. Upload sketch again"));
-    Serial.println();
-    Serial.println(F("Or upload SPIFFS data folder:"));
-    Serial.println(F("  1. Create 'data' folder in sketch directory"));
-    Serial.println(F("  2. Add /melodies/tetris.json"));
-    Serial.println(F("  3. Use 'ESP32 Sketch Data Upload' tool"));
-    Serial.println();
-    Serial.println(F("System halted. Please fix and reboot."));
-    while(1) { delay(1000); }
+    Serial.println(F("\n[FATAL] Cannot proceed without filesystem!"));
+    Serial.println(F("[FATAL] System halted. Please fix and reboot."));
+    while(1) delay(1000);
   }
-  Serial.println(F("OK"));
-
-  // Initialize profile manager
-  Serial.print(F("[INIT] Profile Manager... "));
-  profile.init(&filesystem);
-  Serial.println(F("OK"));
-
-  // Load startup profile (or create default)
-  Serial.print(F("[INIT] Loading Profile... "));
-  if (!profile.loadStartupProfile()) {
-    Serial.println(F("Creating default..."));
-    profile.createDefaultProfile();
-  } else {
-    Serial.println(F("OK"));
-  }
-
-  // Initialize codec manager
-  Serial.print(F("[INIT] Codec Manager... "));
+  
+  // 2. Load System Configuration
+  systemConfig.loadFromFile(&filesystem);
+  
+  // 3. Initialize Codec Manager
   codecManager.init(&filesystem);
-  Serial.println(F("OK"));
-
-  // Initialize audio engine
-  Serial.print(F("[INIT] Audio Engine... "));
-  audio.init(profile.getCurrentSettings());
-  Serial.println(F("OK"));
-
-  // Initialize console
-  Serial.print(F("[INIT] Console... "));
-  console.init(&audio, &profile, &filesystem, &codecManager);
-  Serial.println(F("OK"));
-
-  Serial.println();
-  Serial.println(F("╔════════════════════════════════════════════════════════╗"));
-  Serial.println(F("║              INITIALIZATION COMPLETE                   ║"));
-  Serial.println(F("╚════════════════════════════════════════════════════════╝"));
-  Serial.println();
-
-  // Show initial info
-  Serial.printf("Profile: %s\n", profile.getCurrentSettings()->name);
-  Serial.printf("Audio Mode: %s\n", audio.getModeName());
-  Serial.printf("Sample Rate: %u Hz\n", audio.getSampleRate());
-  Serial.printf("Voices: %d\n", audio.getVoiceCount());
-  Serial.printf("Free RAM: %d KB\n", ESP.getFreeHeap() / 1024);
-  Serial.println();
+  
+  // 4. Initialize Profile Manager
+  profileManager.init(&filesystem);
+  
+  // 5. Load Startup Profile
+  if (!profileManager.loadStartupProfile()) {
+    Serial.println(F("[WARN] No startup profile, creating default..."));
+    profileManager.createDefaultProfile();
+    profileManager.loadStartupProfile();
+  }
+  
+  // 6. Initialize Audio Engine
+  if (!audioEngine.init(profileManager.getCurrentSettings())) {
+    Serial.println(F("\n[FATAL] Audio engine initialization failed!"));
+    Serial.println(F("[FATAL] System halted. Please fix and reboot."));
+    while(1) delay(1000);
+  }
+  
+  // 7. Initialize Console
+  console.init(&audioEngine, &profileManager, &filesystem, &codecManager);
+  
+  printReadyMessage();
 }
 
 // ============================================================================
 // MAIN LOOP
 // ============================================================================
 void loop() {
-  audio.update();
   console.update();
+  audioEngine.update();
+  
+  delay(1);
+}
+
+// ============================================================================
+// BANNER & INFO
+// ============================================================================
+void printBanner() {
+  Serial.println();
+  Serial.println(F("╔══════════════════════════════════════════════════════════════════╗"));
+  Serial.println(F("║                                                                  ║"));
+  Serial.println(F("║            ESP32 AUDIO OS v2.0 - ENTERPRISE EDITION             ║"));
+  Serial.println(F("║                                                                  ║"));
+  Serial.println(F("║  Universal Audio Engine with Plugin Architecture                ║"));
+  Serial.println(F("║  Real-time DSP • Multi-Format Codec Support • Profile System    ║"));
+  Serial.println(F("║                                                                  ║"));
+  Serial.println(F("╚══════════════════════════════════════════════════════════════════╝"));
+  Serial.println();
+}
+
+void printSystemInfo() {
+  Serial.println(F("┌──────────────────────────────────────────────────────────────────┐"));
+  Serial.println(F("│ SYSTEM INFORMATION                                               │"));
+  Serial.println(F("├──────────────────────────────────────────────────────────────────┤"));
+  Serial.printf ("│ Version:        %-48s │\n", AUDIO_OS_VERSION);
+  Serial.printf ("│ Build Date:     %-48s │\n", AUDIO_OS_BUILD_DATE);
+  Serial.printf ("│ Schema:         %-48s │\n", SCHEMA_VERSION);
+  Serial.println(F("├──────────────────────────────────────────────────────────────────┤"));
+  Serial.printf ("│ CPU:            %-48s │\n", ESP32_VARIANT);
+  Serial.printf ("│ Frequency:      %-48s │\n", "160 MHz");
+  Serial.printf ("│ Free RAM:       %-44d KB │\n", ESP.getFreeHeap() / 1024);
+  
+  #if HAS_DUAL_CORE
+  Serial.printf ("│ Cores:          %-48s │\n", "Dual-Core (FreeRTOS)");
+  #else
+  Serial.printf ("│ Cores:          %-48s │\n", "Single-Core");
+  #endif
+  
+  #if HAS_LP_CORE
+  Serial.printf ("│ LP Core:        %-48s │\n", "Available");
+  #endif
+  
+  Serial.println(F("├──────────────────────────────────────────────────────────────────┤"));
+  Serial.println(F("│ FEATURES                                                         │"));
+  Serial.println(F("├──────────────────────────────────────────────────────────────────┤"));
+  Serial.println(F("│ ✓ I2S & PWM Audio Modes                                          │"));
+  Serial.println(F("│ ✓ 5 Waveforms (Sine/Square/Saw/Triangle/Noise)                   │"));
+  Serial.println(F("│ ✓ Polyphonic Synthesis (up to 8 voices)                          │"));
+  Serial.println(F("│ ✓ ADSR Envelope Generator                                        │"));
+  Serial.println(F("│ ✓ State-Variable Filter (LP/HP/BP)                               │"));
+  Serial.println(F("│ ✓ Biquad 3-Band Parametric EQ                                    │"));
+  Serial.println(F("│ ✓ Schroeder Reverb (Comb + Allpass)                              │"));
+  Serial.println(F("│ ✓ LFO Modulation (Vibrato/Tremolo)                               │"));
+  Serial.println(F("│ ✓ Delay/Echo Effect                                              │"));
+  Serial.println(F("│ ✓ Smart Resampling (Linear/Cubic/Sinc)                           │"));
+  Serial.println(F("│ ✓ Profile System (Load/Save/Export)                              │"));
+  Serial.println(F("│ ✓ Dynamic Codec Plugin Architecture                              │"));
+  Serial.println(F("│ ✓ SPIFFS Filesystem Integration                                  │"));
+  Serial.println(F("│ ✓ Full Console Control                                           │"));
+  
+  #if USE_FIXED_POINT_MATH
+  Serial.println(F("│ ✓ Fixed-Point Math Optimization                                  │"));
+  #endif
+  
+  #if USE_WAVETABLE_LOOKUP
+  Serial.println(F("│ ✓ Wavetable Synthesis                                            │"));
+  #endif
+  
+  Serial.println(F("└──────────────────────────────────────────────────────────────────┘"));
+  Serial.println();
+}
+
+void printReadyMessage() {
+  Serial.println();
+  Serial.println(F("╔══════════════════════════════════════════════════════════════════╗"));
+  Serial.println(F("║                       SYSTEM READY                               ║"));
+  Serial.println(F("╚══════════════════════════════════════════════════════════════════╝"));
+  Serial.println();
+  Serial.println(F("Quick Start:"));
+  Serial.println(F("  audio play tetris        - Play Tetris theme"));
+  Serial.println(F("  audio waveform square    - 8-bit retro sound"));
+  Serial.println(F("  audio filter on          - Enable filter"));
+  Serial.println(F("  audio reverb on          - Enable reverb"));
+  Serial.println(F("  audio help               - Show all commands"));
+  Serial.println();
+  Serial.println(F("Type 'audio help' for full command reference"));
+  Serial.println();
+  Serial.print(CONSOLE_PROMPT);
 }

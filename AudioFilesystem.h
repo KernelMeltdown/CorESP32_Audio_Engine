@@ -1,8 +1,4 @@
-/*
- ╔══════════════════════════════════════════════════════════════════════════════╗
- ║  AUDIO FILESYSTEM - SPIFFS/LittleFS Wrapper                                 ║
- ╚══════════════════════════════════════════════════════════════════════════════╝
-*/
+// AudioFilesystem.h - SPIFFS Filesystem Manager
 
 #ifndef AUDIO_FILESYSTEM_H
 #define AUDIO_FILESYSTEM_H
@@ -23,7 +19,6 @@ public:
   bool exists(const char* path);
   bool remove(const char* path);
   bool rename(const char* oldPath, const char* newPath);
-  
   File open(const char* path, const char* mode);
   
   // Directory operations
@@ -42,6 +37,7 @@ private:
   bool initialized;
   
   void ensureDirectories();
+  void verifyDataStructure();
 };
 
 #endif // AUDIO_FILESYSTEM_H

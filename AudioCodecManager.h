@@ -1,8 +1,4 @@
-/*
- ╔══════════════════════════════════════════════════════════════════════════════╗
- ║  AUDIO CODEC MANAGER - Codec Plugin Management System                       ║
- ╚══════════════════════════════════════════════════════════════════════════════╝
-*/
+// AudioCodecManager.h - Dynamic Codec Plugin Management
 
 #ifndef AUDIO_CODEC_MANAGER_H
 #define AUDIO_CODEC_MANAGER_H
@@ -26,20 +22,31 @@ public:
   // Codec registry
   void listCodecs();
   AudioCodec* getCodec(const char* name);
+  int getCodecCount() { return codecCount; }
   
   // Codec info
   void showCodecInfo(const char* name);
   bool canDecode(const char* name, const char* filename);
   
+  // Plugin loading (future)
+  bool loadCodecPlugin(const char* pluginPath);
+  void scanForCodecPlugins();
+  
 private:
   AudioFilesystem* filesystem;
-  // Eigentlich sollten die codecs später im flieFS / spiffs liegen und beim booten automatisch erkannt werden oder so, bitte 
-  // nochmal die DOCS studieren, wir wollen alles maximal flexibel haben und so was wie hier nicht hardcodieren
-  AudioCodec_WAV* wavCodec;
   
-  // Future: More codecs
-  // AudioCodec_MP3* mp3Codec;
-  // etc.
+  struct CodecEntry {
+    char name[32];
+    AudioCodec* codec;
+    bool builtin;
+    bool active;
+  };
+  
+  CodecEntry codecs[MAX_CODEC_PLUGINS];
+  int codecCount;
+  
+  void registerBuiltinCodecs();
+  bool registerCodec(const char* name, AudioCodec* codec, bool builtin);
 };
 
 #endif // AUDIO_CODEC_MANAGER_H
