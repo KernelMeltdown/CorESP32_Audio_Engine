@@ -16,38 +16,6 @@ private:
   // etc.
 };
 
-in AudioConsole.cpp
-
-// Tetris Theme - Built-in melody
-const Note tetrisTheme[] = {
-  { NOTE_E5, 400, 127 }, { NOTE_B4, 200, 127 }, { NOTE_C5, 200, 127 }, { NOTE_D5, 400, 127 }, { NOTE_C5, 200, 127 }, { NOTE_B4, 200, 127 }, { NOTE_A4, 400, 127 }, { NOTE_A4, 200, 127 }, { NOTE_C5, 200, 127 }, { NOTE_E5, 400, 127 }, { NOTE_D5, 200, 127 }, { NOTE_C5, 200, 127 }, { NOTE_B4, 600, 127 }, { NOTE_C5, 200, 127 }, { NOTE_D5, 400, 127 }, { NOTE_E5, 400, 127 }, { NOTE_C5, 400, 127 }, { NOTE_A4, 400, 127 }, { NOTE_A4, 400, 127 }, { NOTE_REST, 400, 0 }, { NOTE_D5, 400, 127 }, { NOTE_F5, 200, 127 }, { NOTE_A5, 400, 127 }, { NOTE_G5, 200, 127 }, { NOTE_F5, 200, 127 }, { NOTE_E5, 600, 127 }, { NOTE_C5, 200, 127 }, { NOTE_E5, 400, 127 }, { NOTE_D5, 200, 127 }, { NOTE_C5, 200, 127 }, { NOTE_B4, 400, 127 }, { NOTE_B4, 200, 127 }, { NOTE_C5, 200, 127 }, { NOTE_D5, 400, 127 }, { NOTE_E5, 400, 127 }, { NOTE_C5, 400, 127 }, { NOTE_A4, 400, 127 }, { NOTE_A4, 400, 127 }, { NOTE_REST, 400, 0 }
-};
-
-
-das sollte eigent,ich nicht vorhanden sein, denn das sollte von /melodies/Tetris.json spielen
-
-
-Display und alles was damit zu tun hat entfernen "// ============================================================================
-// DISPLAY CONFIGURATION
-// ============================================================================
-#define DISPLAY_ENABLED         1
-
-#if DISPLAY_ENABLED
-  #define PIN_SCLK              7
-  #define PIN_MOSI              6
-  #define PIN_TFT_CS            14
-  #define PIN_TFT_DC            15
-  #define PIN_TFT_RST           21
-  #define PIN_BL                22
-  #define LCD_WIDTH             172
-  #define LCD_HEIGHT            320
-  #define DEFAULT_BRIGHTNESS    180
-  
-  #define TFT_CS                PIN_TFT_CS
-  #define TFT_DC                PIN_TFT_DC
-  #define TFT_RST               PIN_TFT_RST
-#endif wir handhaben alles per console es geht rein um Audio , visualisieren ist nicht notwendig
-
 ich  weiß auch nicht ob wir "// ============================================================================
 // ESP32 VARIANT STRING
 // ============================================================================
